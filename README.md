@@ -6,4 +6,6 @@
 # "clean" deletes all *.o, *.bin and *.elf binary-files, so that you can compile it from zero again.
 # It is optimized to gcc, nasm, QEMU and a Linux System such as Mint or Arch.
 
-# code comments are written in German, can be ignored.
+# Code comments are written in German, can be ignored.
+
+# If Booted in a VM type "help" in the shell of the System to see all available commands

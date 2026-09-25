@@ -1,10 +1,16 @@
 # GoonerOS
 # Hand made hobby OS. Experimental! Do not flash this on a Install medium etc. Test only in a VM such as QEMU.
-# Needs to be compiled locally with gcc and nasm or other C and assembly compilers.
-# "make run" compiles the code and starts qemu (if installed).
-# "make" just compiles it.
-# "clean" deletes all *.o, *.bin and *.elf binary-files, so that you can compile it from zero again.
-# It is optimized to gcc, nasm, QEMU and a Linux System such as Mint or Arch (Windows or MacOS does not work!).
-# Hardware needed: BIOS x86-PC, VESA graphic-mode 0x4118, PS/2-Mouse and Keyboard and ATA/IDE. In QEMU thats not a problem.
+
+Needed:
+  # Needs to be compiled locally with 32-bit-GCC, and nasm or other C and assembly compilers.
+  # Needed to compile/boot: 32-bit-GCC, nasm, objcopy and QEMU (newest version of all of them).
+  # It is optimized to 32-bit-GCC, nasm, QEMU and a Linux System such as Mint or Arch (WSL on Windows might work, not testet).
+  # Hardware needed: BIOS x86-PC, VESA graphic-mode 0x4118, PS/2-Mouse and Keyboard and ATA/IDE. In QEMU thats not a problem.
+
+Makefile Commands:
+  # "make run" compiles the code and starts qemu (if installed).
+  # "make" just compiles it.
+  # "clean" deletes all *.o, *.bin and *.elf binary-files, so that you can compile it from zero again.
+
 # Code comments are written in German, can be ignored.
 # If Booted in a VM type "help" in the shell of the System to see all available commands

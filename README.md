@@ -4,8 +4,7 @@
 # "make run" compiles the code and starts qemu (if installed).
 # "make" just compiles it.
 # "clean" deletes all *.o, *.bin and *.elf binary-files, so that you can compile it from zero again.
-# It is optimized to gcc, nasm, QEMU and a Linux System such as Mint or Arch.
-
+# It is optimized to gcc, nasm, QEMU and a Linux System such as Mint or Arch (Windows or MacOS does not work!).
+# Hardware needed: BIOS x86-PC, VESA graphic-mode 0x4118, PS/2-Mouse and Keyboard and ATA/IDE. In QEMU thats not a problem.
 # Code comments are written in German, can be ignored.
-
 # If Booted in a VM type "help" in the shell of the System to see all available commands

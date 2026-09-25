@@ -13,4 +13,6 @@ Makefile Commands:
   # "clean" deletes all *.o, *.bin and *.elf binary-files, so that you can compile it from zero again.
 
 # Code comments are written in German, can be ignored.
+# OS and GUI is in German, cannot set to English!
+# Shell commands are in English, commands are highly inspired by Linux
 # If Booted in a VM type "help" in the shell of the System to see all available commands

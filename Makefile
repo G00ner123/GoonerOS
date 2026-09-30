@@ -1,5 +1,7 @@
-# "make run" Kompiliert es und startet QEMU
+# "make run" Kompiliert und startet QEMU
 # "make clean" Löscht alle *.bin, *elf und *.o Dateien
+# "make run" compiles and starts QEMU
+# "make clean" removes all of *.bin, *.elf and *.o files so that you can compile it from zero again.
 
 ASM = nasm
 CC  = gcc
@@ -32,20 +34,20 @@ interrupts.o: interrupts.asm
 	$(ASM) -f elf32 interrupts.asm -o interrupts.o
 
 # Pattern-Regel: jede beliebige xyz.c wird zu xyz.o. kernel.h/io.h als
-# Abhaengigkeit, damit bei Header-Aenderungen alles neu gebaut wird.
+# Abhängigkeit.
 %.o: %.c kernel.h io.h
 	$(CC) $(CFLAGS) $< -o $@
 
-# Reihenfolge beim Linken ist Pflicht: isr.o zuerst, weil dort _start
-# (der echte Einsprungpunkt bei 0x100000, .text.boot) drinsteckt.
+# Reihenfolge beim Linken: isr.o zuerst, weil dort _start
+# (der echte Einsprungpunkt bei 0x100000, .text.boot) drin is.
 kernel.elf: isr.o $(C_OBJECTS) interrupts.o linker.ld
 	$(LD) $(LDFLAGS) -o kernel.elf isr.o $(C_OBJECTS) interrupts.o
 
 kernel.bin: kernel.elf
 	objcopy -O binary kernel.elf kernel.bin
 
-# os.img MUSS auf 1 MiB aufgefuellt werden, sonst liest stage2.asm beim
-# 127-Sektoren-Kernelload ueber das Dateiende hinaus -> Boot haengt.
+# os.img muss auf 1 MiB aufgefüllt werden, sonst liest stage2.asm beim
+# 127-Sektoren-Kernelload über das Dateiende hinaus und Boot hängt.
 os.img: boot.bin stage2.bin kernel.bin build_image.py
 	python3 build_image.py boot.bin stage2.bin kernel.bin os.img
 
@@ -53,5 +55,5 @@ run: os.img
 	$(QEMU) $(QEMUFLAGS)
 
 clean:
-# os.img enthaelt persistente Nutzerdaten und darf beim Aufraeumen nicht geloescht werden.
+# os.img enthält persistente Nutzerdaten, darf beim Aufräumen nicht gelöscht werden.
 	rm -f *.o *.bin *.elf

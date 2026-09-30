@@ -2,26 +2,6 @@
 #include "io.h"
 
 // ==================== Desktop / Fenstermanager ====================
-// Fenster haben eine Position im RAM, koennen per Titelleiste verschoben,
-// per X geschlossen und per Klick nach vorne (Z-Order) geholt werden.
-//
-// WICHTIG zur Performance/Stabilitaet: Es wird NIE der komplette Bildschirm
-// geloescht und neu gemalt (das verursachte vorher das "Blinken" beim
-// Uhr-Tick und das Geflacker beim Ziehen). Stattdessen wird gezielt nur das
-// betroffene Rechteck geloescht (auf den Wallpaper-Farbverlauf zurueckgesetzt)
-// und neu gezeichnet. Ausnahme: ein Themenwechsel faerbt wirklich alle
-// Titelleisten + Taskleiste neu ein, dafuer lohnt sich ein Komplett-Redraw.
-//
-// WICHTIG zur Interrupt-Sicherheit: Diese Datei wird NIE direkt aus dem
-// Maus-Interrupt (IRQ12) heraus aufgerufen. desktop_handle_mouse() wird von
-// der Hauptschleife in kernel.c aufgerufen (mit aktivierten Interrupts!),
-// nachdem mouse.c per mouse_poll_event() ein neues Paket gemeldet hat. Die
-// ISR selbst tut nur das absolut Noetige (Paket einlesen, Cursor-Sprite
-// verschieben) - alles Teure (Fenster neu zeichnen) passiert ausserhalb des
-// Interrupt-Kontexts. Sonst blockiert ein langer Redraw alle Interrupts
-// (IDT-Gates sind hier "interrupt gates", die IF waehrend der ISR loeschen),
-// der PS/2-Controller-Puffer laeuft ueber und die Maus-Pakete desynchen -
-// genau das war die Ursache des "epileptischen" Rucklers beim Ziehen.
 
 int desktop_active = 0;
 static int terminal_windowed = 0;
@@ -932,12 +912,7 @@ void desktop_fullscreen(void) {
 
 // Ob das Terminal gerade das "fokussierte Programm" ist, also Tastatur-
 // eingaben bekommen soll: im Vollbild immer, auf dem Desktop nur wenn das
-// Terminal-Fenster existiert UND das oberste (zuletzt angeklickte) Fenster
-// ist. Wird von keyboard.c benutzt, um Tastendruecke zu verwerfen, wenn
-// ein anderes Fenster obenauf liegt oder gar kein Terminal offen ist - der
-// Desktop ist damit kein reiner "interaktiver Hintergrund fuers Terminal"
-// mehr, sondern das Terminal ist ein Fenster wie jedes andere, das erst
-// fokussiert sein muss. Steuert ausserdem, ob der Eingabecursor blinkt.
+// Terminal-Fenster existiert UND das oberste (zuletzt angeklickte) Fenster ist.
 int desktop_terminal_focused(void) {
     if(!desktop_active) return 1;
     int idx = win_find_type(TYPE_TERMINAL);
@@ -1318,9 +1293,7 @@ void desktop_editor_key(char c, int special) {
 }
 
 // Von kernel_main einmal pro Sekunde aufgerufen: liest die RTC, aktualisiert
-// den Uhr-Cache und malt NUR die Taskleiste + ein evtl. offenes (nicht
-// verdecktes) Uhr-Fenster neu - kein Komplett-Redraw mehr (das war der
-// Grund fuer das sekuendliche "Blinken").
+// den Uhr-Cache und malt NUR die Taskleiste + ein evtl. offenes Uhr-Fenster neu
 void desktop_tick(void) {
     unsigned char s,m,h,d,mo,y, s2,m2,h2,d2,mo2,y2;
     do {
@@ -1342,10 +1315,7 @@ void desktop_tick(void) {
 
     if(!desktop_active || drag_idx >= 0) return;
 
-    // BUGFIX: das war die Hauptquelle des "Einbrennens" - dieser Tick laeuft
-    // jede Sekunde, egal ob die Maus sich bewegt hat oder nicht. Ohne den
-    // Hide-Aufruf hat mouse_refresh_cursor() weiter unten regelmaessig den
-    // noch dort stehenden Cursor-Pfeil selbst als "Hintergrund" gesichert.
+    // BUGFIX: Hauptquelle des Einbrennens
     mouse_cursor_hide();
     draw_taskbar();
     redraw_windows_overlapping(0, VESA_HEIGHT-TASKBAR_H, VESA_WIDTH, TASKBAR_H, -1);

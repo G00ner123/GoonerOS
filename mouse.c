@@ -35,7 +35,6 @@ void mouse_handler(unsigned char data) {
     if(mouse_x > VESA_WIDTH - 8) mouse_x = VESA_WIDTH - 8;
     if(mouse_y > VESA_HEIGHT - 12) mouse_y = VESA_HEIGHT - 12;
 
-    // IRQs only collect input. Framebuffer writes belong to the main loop.
     mouse_event_pending = 1;
     cycle = 0;
 }

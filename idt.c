@@ -36,10 +36,10 @@ void remap_pic(void) {
     outb(0x21, 0xFF);
     outb(0xA1, 0xFF);
 
-    outb(0x20, 0x11); outb(0xA0, 0x11); // Start initialization sequence
-    outb(0x21, 0x20); outb(0xA1, 0x28); // Set PIC offsets (Master 0x20, Slave 0x28)
-    outb(0x21, 0x04); outb(0xA1, 0x02); // Tell Master about Slave at IRQ2, Tell Slave its cascade identity
-    outb(0x21, 0x01); outb(0xA1, 0x01); // Set 8086 mode
+    outb(0x20, 0x11); outb(0xA0, 0x11); // initialization sequenz startet
+    outb(0x21, 0x20); outb(0xA1, 0x28);
+    outb(0x21, 0x04); outb(0xA1, 0x02); // Hi lol ich hab keine ahnung was ich hier gezaubert hab :)
+    outb(0x21, 0x01); outb(0xA1, 0x01); // 8086 modus
     
     // IRQs will be unmasked specifically in kernel_main
 }
@@ -52,15 +52,11 @@ void irq0_handler(void) {
     irq_ack(0);
 }
 
-// Echte Wartefunktion, unabhaengig von Interrupts (die sind waehrend eines
-// Shell-Befehls sowieso gesperrt - ticks zaehlt dann NICHT mit, das war der
-// Kern des "kein Zeitgefuehl"-Bugs). Liest stattdessen den PIT-Zaehler
+// Echte Wartefunktion, unabhaengig von Interrupts. Liest stattdessen den PIT-Zähler
 // direkt per Port aus (Latch-Kommando 0x00 an Port 0x43, dann Port 0x40
 // zweimal lesen = aktueller 16-Bit-Countdown-Wert). Der PIT laeuft mit
 // Divisor 1193 (siehe pit_init) -> ca. 1193182/1193 = 1000 Hz, also ein
-// Ueberlauf (Countdown startet wieder von vorn) pro Millisekunde. Wir
-// zaehlen diese Ueberlaeufe direkt, statt uns auf den Interrupt zu
-// verlassen, der waehrend eines Befehls ja gar nicht feuern kann.
+// Ueberlauf pro Millisekunde. Genau, war auch ein fehler für nen bug.
 void pit_wait_ms(unsigned int ms) {
     unsigned int elapsed = 0;
     unsigned short last = 0xFFFF;

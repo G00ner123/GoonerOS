@@ -9,17 +9,14 @@ int text_x = 0;
 int text_y = 0;
 static unsigned int text_color = 0xFFFFFF;
 
-// Terminal-Fensterbereich: wo und wie gross das Terminal gerade zeichnet.
-// Default = ganzer Bildschirm, exakt wie bisher. Der Desktop kann das per
-// vga_set_region() auf einen kleineren Bereich (mit Platz fuer Titelleiste
-// und Rand) umstellen, ohne dass sich am Text-Rendering selbst was aendert.
+// Terminal-Fensterbereich
 static int term_ox = 0, term_oy = 0;
 static int term_w = TEXT_WRAP_WIDTH;
 static int term_h = VESA_HEIGHT;
 
 void vga_set_region(int ox, int oy, int w, int h) {
-    // Sicherheitsbegrenzung: text_buffer ist fest TEXT_ROWS x TEXT_COLS
-    // gross, darueber hinaus darf der Bereich nie wachsen.
+    // text_buffer ist TEXT_ROWS x TEXT_COLS
+    // gross, darüber hinaus darf der Bereich nie waxsen.
     if(ox < 0) ox = 0;
     if(oy < 0) oy = 0;
     if(ox >= VESA_WIDTH) ox = VESA_WIDTH - 1;
@@ -214,9 +211,8 @@ void vga_clear(void) {
         for(int c = 0; c < TEXT_COLS; c++)
             text_buffer[r][c] = 0;
 }
-// Wie vga_clear(), leert aber NUR den aktuellen Fensterbereich statt des
-// gesamten Bildschirms - fuer ein Terminal-Fenster auf dem Desktop, damit
-// Hintergrund/Icons/Taskleiste dabei nicht mitgeloescht werden.
+// Wie vga_clear(), leert nur den aktuellen Fensterbereich statt des
+// gesamten Bildschirms, damit hintergrund/Icons/Taskleiste nicht gelöscht werden.
 
 void vga_clear_region(void) {
     for(int j = term_oy; j < term_oy+term_h; j++)
@@ -304,14 +300,13 @@ void draw_circle_filled(int cx, int cy, int r, unsigned int color) {
 }
 void draw_arch_logo(int cx, int top_y, int height, int half_width, unsigned int color) {
     int base_y = top_y + height;
-    unsigned int dark  = 0x0E6FA3;   // dunkleres Blau, linkes "Bein"
-    unsigned int light = 0x2BB3E8;   // helleres Blau, rechtes "Bein"
+    unsigned int dark  = 0x0E6FA3;   // dunkleres Blau, linker arch bogen tor ständer
+    unsigned int light = 0x2BB3E8;   // helleres Blau, rechter arch bogen dings
 
-    // Linke und rechte Haelfte getrennt einfaerben (Zweiton-Verlauf wie beim Original)
     draw_triangle(cx, top_y, cx-half_width, base_y, cx, base_y, dark);
     draw_triangle(cx, top_y, cx, base_y, cx+half_width, base_y, light);
 
-    // Torbogen-Aussparung von unten (Halbkreis oben + gerader Schacht) - schmaler, damit die Beine dicker bleiben
+    // Torbogen-Aussparung von unten
     int arch_r = half_width * 3 / 10;
     int arch_top = top_y + height * 45 / 100;
     for(int y = -arch_r; y <= 0; y++)
@@ -319,7 +314,7 @@ void draw_arch_logo(int cx, int top_y, int height, int half_width, unsigned int 
             if(x*x + y*y <= arch_r*arch_r) put_pixel(cx+x, arch_top+arch_r+y, 0x000000);
     draw_rect(cx - arch_r, arch_top + arch_r, arch_r*2, base_y - (arch_top+arch_r) + 1, 0x000000);
 
-    // Kleine Kerbe am linken Rand, angelehnt ans Original (bewusst vereinfacht/asymmetrisch)
+    // Kerbe am linken Rand
     int lx = cx - half_width * 32 / 100;
     int ly = top_y + height * 32 / 100;
     draw_triangle(lx, ly,
@@ -328,7 +323,6 @@ void draw_arch_logo(int cx, int top_y, int height, int half_width, unsigned int 
                   0x000000);
 }
 void draw_mint_logo(int show) {
-    // Eigene Interpretation aus Grundformen (Kreis + L/M-Monogramm), kein Vektor-Trace des Originals
     int cx = 865, cy = 480, r = 80;
 
     if(!show) {
@@ -341,19 +335,16 @@ void draw_mint_logo(int show) {
 
     draw_circle_filled(cx, cy, r, green);
 
-    // "L"-Balken links, oben abgerundet
     int lx = cx - 44, lw = 20;
     int top_y = cy - 42;
     draw_rect(lx, top_y, lw, 68, white);
     draw_circle_filled(lx+lw/2, top_y, lw/2, white);
 
-    // Breiter, abgerundeter Steg unten -> verbindet L und M zu einer gemeinsamen Kontur
     int base_y = cy + 18, base_h = 26, base_right = cx + 46;
     draw_rect(lx, base_y, base_right-lx, base_h, white);
     draw_circle_filled(lx+lw/2, base_y+base_h/2, base_h/2, white);
     draw_circle_filled(base_right, base_y+base_h/2, base_h/2, white);
 
-    // "M": zwei Boegen, oben abgerundet, sitzen auf dem Steg
     int m_top = cy - 12, m_h = 45, leg_w = 16;
     int m1x = cx - 6, m2x = cx + 25;
     draw_rect(m1x, m_top, leg_w, m_h, white);
@@ -361,13 +352,10 @@ void draw_mint_logo(int show) {
     draw_circle_filled(m1x+leg_w/2, m_top, leg_w/2, white);
     draw_circle_filled(m2x+leg_w/2, m_top, leg_w/2, white);
 
-    // Aeussere rechte Kontur des M, damit beide Boegen wie aus einem Stueck wirken
     int outer_x = m2x + leg_w + 4;
     draw_rect(outer_x, m_top, leg_w, m_h, white);
     draw_circle_filled(outer_x+leg_w/2, m_top, leg_w/2, white);
 
-    // Gruen zwischen den Boegen wieder freilegen (die zwei "Fenster" des M),
-    // erst unterhalb der abgerundeten Kappen, damit die Rundungen sauber bleiben
     int window_top = m_top + leg_w/2;
     draw_rect(m1x+leg_w, window_top, m2x-(m1x+leg_w), 20, green);
     draw_rect(m2x+leg_w, window_top, outer_x-(m2x+leg_w), 20, green);
@@ -391,8 +379,6 @@ void play_gooneros_animation(void) {
     if(mint_visible) draw_mint_logo(1);
 }
 
-// 16x16 Pixel-Herz, Bit=1 heisst "gefuellt" - genau wie die font8x16-Tabelle
-// oben, nur als eigene kleine Bitmap statt Buchstabe.
 static const unsigned short heart_bitmap[16] = {
     0x0E70,0x3FFC,0x7FFE,0xFFFF,0xFFFF,0xFFFF,0xFFFF,0x7FFE,
     0x7FFE,0x3FFC,0x3FFC,0x1FF8,0x1FF8,0x07E0,0x03C0,0x0180
@@ -408,25 +394,17 @@ void draw_heart(int cx, int cy, int scale, unsigned int color) {
                 draw_rect(x0 + col*scale, y0 + row*scale, scale, scale, color);
     }
     if(color != 0x000000 && scale >= 3) {
-        // Kleines Glanzlicht oben links fuer einen leicht glossy Look
         draw_circle_filled(x0 + 4*scale, y0 + 4*scale, scale, 0xFF6E86);
     }
 }
 
 // ==================== Desktop-Vorkehrungen ====================
-// UI-Akzentfarbe, ueber den "theme"-Befehl aenderbar - wird schon jetzt
-// fuer den Eingabe-Cursor benutzt, spaeter auch fuer Fenster-Titelleisten.
+// UI-Akzentfarbe
 unsigned int ui_theme_color = 0x00FFAA;
 
-// Grundbaustein fuer den kommenden Fenster-Desktop: Koerper + Titelleiste
-// + duenner Rahmen, alles aus bereits vorhandenen draw_rect/draw_char
-// zusammengesetzt (genau wie draw_arch_logo/draw_mint_logo das schon tun).
 void draw_window(int x, int y, int w, int h, const char* title) {
     draw_rect(x, y, w, h, 0x1A1A1A);
 
-    // Leichter Verlauf in der Titelleiste (100% -> 75% Helligkeit von oben
-    // nach unten) statt einer platten Farbflaeche - wirkt weniger nach
-    // Windows-95-Flatstyle, kostet aber praktisch nichts extra.
     unsigned char r = (ui_theme_color>>16)&0xFF, g=(ui_theme_color>>8)&0xFF, b=ui_theme_color&0xFF;
     for(int i = 0; i < 20; i++) {
         int pct = 100 - (i*25)/20;

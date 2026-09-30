@@ -15,8 +15,7 @@ _start:
     ; werden von kernel_main ausgelesen. WICHTIG: der Stack liegt selbst im
     ; .bss-Bereich (stack_top ist Teil davon), darum NICHT auf den Stack
     ; pushen - die BSS-Nullung unten würde die gepushten Werte sonst mit
-    ; überschreiben! Nur ecx zwischenparken (wird fuer die Zaehlschleife
-    ; gebraucht), ebx/edx fasst rep stosb gar nicht an.
+    ; überschreiben! Nur ecx zwischenparken, ebx/edx fasst rep stosb gar nicht an.
     mov esi, ecx
 
     ; .bss nullen, bevor irgendein C-Code laeuft - globale Variablen ohne

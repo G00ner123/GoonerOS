@@ -92,16 +92,15 @@ pm_entry:
     mov ss, ax
     mov esp, 0x90000
 
-    ; Jetzt im Protected Mode flach nach 0x100000 kopieren, wo
-    ; Linker/kernel_main ihn erwarten.
+    ; Jetzt im Protected Mode flach nach 0x100000 kopieren.
     mov esi, 0x10000
     mov edi, 0x100000
     mov ecx, (508*512)/4   ; vier BIOS-Transfers mit je 127 Sektoren
     rep movsd
 
-    ; Framebuffer-Infos erst jetzt lesen (ecx wurde oben für rep movsd gebraucht)
+    ; Framebuffer-Infos erst jetzt lesen
     mov ebx, [vbe_mode_info + 0x28]        ; physische Framebuffer-Adresse
-    movzx ecx, word [vbe_mode_info + 0x10] ; Bytes pro Bildzeile (Pitch)
+    movzx ecx, word [vbe_mode_info + 0x10] ; Bytes pro Bildzeile
     movzx edx, byte [vbe_mode_info + 0x19] ; Bits pro Pixel
 
     mov eax, 0x100000
@@ -136,7 +135,7 @@ dap_kernel:
     db 0x10
     db 0
     dw 127
-    dw 0x0000, 0x1000   ; wird vor dem Laden fuer jeden Transfer gesetzt
+    dw 0x0000, 0x1000   ;
     dq 3
 
 gdt_start:
@@ -159,6 +158,6 @@ gdt_ptr:
     dw gdt_end - gdt_start - 1
     dd gdt_start
 
-; Auf exakt 2 Sektoren (1024 Bytes) auffuellen - boot.asm liest fuer stage2
-; immer genau 2 Sektoren, unabhaengig davon wie gross der Code hier gerade ist
+; Auf exakt 2 Sektoren (1024 Bytes) auffüllen - boot.asm liest für stage2
+; immer genau 2 Sektoren egal wie gross der Code hier ist
 times 1024-($-$$) db 0

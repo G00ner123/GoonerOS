@@ -30,8 +30,8 @@
 
 /* ==================== Dateisystem ====================
  * Bootloader liest LBA 3-510 als Kernel-Loadfenster. Das Dateisystem beginnt
- * deshalb erst dahinter, damit persistente Schreibvorgaenge nie den Kernel
- * oder Bootcode ueberschreiben:
+ * dahinter, damit persistente Schreibvorgaenge nie Kernel
+ * oder Bootcode überschreiben:
  *   LBA 512        Superblock (1 Sektor)
  *   LBA 513-514    Dateitabelle (32 Eintraege x 32 Bytes = 1024 Bytes)
  *   LBA 515+       Datenbereich, je Eintrag feste 16 Sektoren (8 KB)
@@ -174,7 +174,7 @@ int mouse_get_x(void);
 int mouse_get_y(void);
 int mouse_left_pressed(void);
 void mouse_refresh_cursor(void);
-void mouse_cursor_hide(void); // BUGFIX: vor jedem Redraw aufrufen, der Pixel unter dem Cursor ueberschreiben koennte
+void mouse_cursor_hide(void); // BUGFIX: vor jedem Redraw aufrufen, der Pixel unter dem Cursor überschreiben könnte
 int mouse_poll_event(int* x, int* y, int* left);
 
 /* ==================== Shell ==================== */

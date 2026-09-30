@@ -245,23 +245,23 @@ void reboot(void) {
     int timeout = 100000;
     do {
         status = inb(0x64);
-        if(status & 1) inb(0x60); // wartende Daten abholen, damit sie nicht im Weg stehen
+        if(status & 1) inb(0x60); // wartende Daten abholen, damit nicht im Weg stehen
         timeout--;
-    } while((status & 2) && timeout > 0); // warten bis Eingabepuffer (Bit 1) leer ist
+    } while((status & 2) && timeout > 0); // warten bis Eingabepuffer Bit 1 leer is
     outb(0x64, 0xFE);
     for(;;) asm volatile("hlt");
 }
 
 void beep(void) {
-    outb(0x61, inb(0x61)|3); // Enable speaker and gate 2
-    outb(0x43,0xB6);        // Set PIT channel 2 to square wave generator
-    outb(0x42,0xA9);        // Set frequency (low byte)
-    outb(0x42,0x04);        // Set frequency (high byte) (4A9h = 1193180 / 1193 = ~1kHz)
+    outb(0x61, inb(0x61)|3); // macht speaker und gate 2 an
+    outb(0x43,0xB6);        // setzt PIT channel 2 auf wellen generator 
+    outb(0x42,0xA9);        // setzt frequenz auf low
+    outb(0x42,0x04);        // setzut frequenz auf high, 4A9h=1193180/ 1193=~~1kHz
 
-    // Simple delay to make the beep audible for a short duration
+    // beep audio
     pit_wait_ms(150);
 
-    outb(0x61, inb(0x61) & 0xFC); // Turn off speaker (clear bits 0 and 1)
+    outb(0x61, inb(0x61) & 0xFC); // macht speaker aus
 }
 
 int parse_int(char** p) {
@@ -282,7 +282,7 @@ void remember_draw(int x, int y, int w, int h) {
 }
 int get_ip(char* out) {
     (void)out;
-    return 0; // Kein Netzwerkstack vorhanden -> aktuell nie verfuegbar
+    return 0; // (noch ?) Kein Netzwerkstack da aktuell nicht verfügbar
 }
 void handle_command(void) {
     input_buf[input_idx] = 0;
@@ -319,16 +319,16 @@ void handle_command(void) {
         vga_print("draw x y z;                       |              sleep; cal;\n");
         vga_print("logo; mintlogo; matrix;           |           (alarm) countdown\n");
         vga_print("ida; fire; snow;                  |                         \n");
-        vga_print("sl; cls; clear; clean              |                         \n");
-        vga_print("theme desktop; mouse; desktop;    |     loadkeys [de|en]\n");
+        vga_print("sl; cls; clear; clean             |                 loadkeys\n");
+        vga_print("theme desktop; mouse; desktop;    |           loadkeys [de|en]\n");
         vga_print("fullscreen; window                |                         \n");
         vga_print("                                  |                         \n");
         vga_print("__________________________________|_________________________________\n");
         vga_print("== System Control ==              |         == Network & Misc ==\n");
         vga_print("reboot; shutdown; halt;           |          ping x; ifconfig;\n");
         vga_print("poweroff; logout; exit;           |            true; false;\n");
-        vga_print("passwd; spawn counter;             |    spawn checksum PATH; kill PID\n");
-        vga_print("                                   |       ps; jobs; apt install x\n");
+        vga_print("passwd; spawn counter;            |    spawn checksum PATH; kill PID\n");
+        vga_print("                                  |       ps; jobs; apt install x\n");
         vga_print("su; beep                          |              \n");
 
     }
@@ -554,7 +554,7 @@ void handle_command(void) {
         print_int(ticks/1000); vga_print("s\n");
     }
     else if(strcmp(input_buf, "rand") == 0) {
-        // Einfacher Pseudozufall auf Basis der Timer-Ticks (kein Anspruch auf Kryptoqualitaet)
+        // Einfacher Pseudozufall auf Basis der Timer-Ticks
         unsigned int seed = ticks * 2654435761u + 12345;
         print_int((int)(seed % 100)); vga_putc('\n');
     }
@@ -883,10 +883,10 @@ void handle_command(void) {
     }
     else if(strcmp(input_buf, "fortune") == 0) {
         const char* quotes[] = {
-            "Ein guter Kernel bootet beim ersten Versuch. Meiner nicht immer.\n",
-            "Es gibt kein Problem, das nicht durch mehr Interrupts geloest werden kann.\n",
+            "Platzhalter\n",
+            "Platzhalter.\n",
             "Triple Fault: die Art des Computers zu sagen 'nochmal von vorn'.\n",
-            "Echte OS-Entwickler debuggen mit blinkenden LEDs statt printf.\n",
+            "Platzthalter.\n",
             "Ein Bootloader ist nur ein sehr, sehr kurzes Betriebssystem.\n"
         };
         unsigned int seed = ticks*2654435761u + (unsigned int)text_x;
@@ -1063,16 +1063,16 @@ void handle_command(void) {
     else if(strcmp(input_buf, "logo") == 0)
         draw_arch_logo(900, 20, 330, 100, 0x1793D1);
     else if(strcmp(input_buf, "whoami") == 0) {
-        // GoonerOS hat noch keinen Netzwerkstack -> es gibt aktuell nie eine echte IP.
-        // get_ip() gibt 0 zurueck solange das so ist; sobald Networking existiert, hier einhaengen.
+        // gibt aktuell noch keine echte IP.
+        // get_ip() gibt 0 zurueck solange das so ist;
         char ip[16];
         if(get_ip(ip)) { vga_print("root@GoonerOS ("); vga_print(ip); vga_print(")\n"); }
         else vga_print("Root@GoonerOS\n");
     }
     else if(strcmp(input_buf, "exit") == 0) {
         vga_print("Shutting down...\n");
-        outw(0x604, 0x2000);  // ACPI-Shutdown-Trick, funktioniert bei den meisten QEMU-Standardkonfigurationen
-        outw(0xB004, 0x2000); // Fallback fuer manche QEMU-Versionen
+        outw(0x604, 0x2000);  // ACPI-Shutdown, funktioniert bei den meisten QEMU Standardkonfigurationen
+        outw(0xB004, 0x2000); // Fallback für manche QEMU-Versionen
         for(;;) asm volatile("hlt");
     }
     else if(strcmp(input_buf, "time") == 0 || strcmp(input_buf, "date") == 0)
@@ -1092,7 +1092,7 @@ vga_print(" bytes\n");
     else if(strcmp(input_buf, "beep") == 0) {
         vga_print("Beep!\n"); beep();
     }
-    /* ==================== Neue "echte" Befehle ==================== */
+    /* ====================  Befehle ==================== */
     else if(strncmp(input_buf, "seq ", 4) == 0) {
         char* p = &input_buf[4];
         int n = parse_int(&p);
@@ -1126,7 +1126,7 @@ vga_print(" bytes\n");
         char* p = &input_buf[4];
         int n = parse_int(&p);
         if(n < 0) n = 0;
-        if(n > 45) n = 45; // 32-Bit int laeuft danach ueber
+        if(n > 45) n = 45; // 32-Bit int läuft danach über
         int a = 0, b = 1;
         for(int i = 0; i < n; i++) { int t = a+b; a = b; b = t; }
         print_int(a); vga_putc('\n');
@@ -1135,7 +1135,7 @@ vga_print(" bytes\n");
         char* p = &input_buf[10];
         int n = parse_int(&p);
         if(n < 0) n = 0;
-        if(n > 12) n = 12; // 13! passt nicht mehr in 32 Bit
+        if(n > 12) n = 12; // 13! passt nicht in 32 Bit
         unsigned int r = 1;
         for(int i = 2; i <= n; i++) r *= i;
         print_int((int)r); vga_putc('\n');
@@ -1339,7 +1339,7 @@ vga_print(" bytes\n");
             pit_wait_ms(100); // ~2 Sekunden stehen lassen
         int sc = scale;
         while(sc > 0) {
-            draw_heart(cx, cy, sc, 0x000000); // aktuelle Grösse loeschen
+            draw_heart(cx, cy, sc, 0x000000); // aktuelle Grösse löschen
             sc--;
             if(sc > 0) draw_heart(cx, cy, sc, 0xFF1744); // nächstkleinere Grösse
             pit_wait_ms(80);
@@ -1394,9 +1394,7 @@ vga_print(" bytes\n");
         redraw_text_buffer();
     }
     else if(strcmp(input_buf, "clock") == 0) {
-        // Echtzeit-Uhr: liest die RTC jede Runde neu und zeichnet nur bei
-        // Sekundenwechsel neu. Läuft ~60s, dann automatisch zurück zum
-        // Prompt - währenddessen ist die Shell blockiert (siehe Hinweistext).
+        // Echtzeit-Uhr: zeichnet nur bei Sekundenwechsel neu.
         int scale = 6, char_w = 8*scale, len = 8;
         int gx = (VESA_WIDTH - len*char_w) / 2, gy = (VESA_HEIGHT - 16*scale) / 2;
         clear_last_draw();
@@ -1460,7 +1458,7 @@ vga_print(" bytes\n");
         vga_print("  Left: "); vga_print(mouse_left_pressed() ? "pressed\n" : "released\n");
     }
 
-    /* ==================== Weitere nuetzliche Befehle ==================== */
+    /* ==================== Weitere Befehle ==================== */
     else if(strncmp(input_buf, "append ", 7) == 0) {
         char* sp = &input_buf[7];
         while(*sp && *sp != ' ') sp++;
@@ -1501,7 +1499,7 @@ vga_print(" bytes\n");
         char* p = &input_buf[6];
         int secs = parse_int(&p);
         if(secs < 0) secs = 0;
-        if(secs > 30) secs = 30; // Sicherheitsbegrenzung, Shell ist waehrenddessen blockiert
+        if(secs > 30) secs = 30; // Sicherheitsbegrenzung, Shell ist blockiert
         vga_print("Waiting "); print_int(secs); vga_print("s...\n");
         for(int s = 0; s < secs; s++)
             pit_wait_ms(1000);

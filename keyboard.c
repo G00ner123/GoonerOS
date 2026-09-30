@@ -92,17 +92,17 @@ void keyboard_load_layout(void) {
     }
 }
 void ps2_init(void) {
-    // Beide Ports kurz deaktivieren, Ausgabepuffer leeren
+    // Beide Ports kurz deaktivieren Ausgabepuffer leeren
     outb(0x64, 0xAD);
     outb(0x64, 0xA7);
     inb(0x60);
 
-    // Konfigurationsbyte des PS/2-Controllers lesen
+    // Konfigurationsbyte PS/2-Controllers lesen
     outb(0x64, 0x20);
     unsigned char config = inb(0x60);
 
-    // Bit 0 = IRQ1 (Tastatur) aktivieren, Bit 1 = IRQ12 (Maus) aktivieren,
-    // Bit 4/5 (Takt-Deaktivierung beider Ports) sicherheitshalber löschen
+    // Bit 0 = IRQ1 aktivieren, Bit 1 = IRQ12 aktivieren,
+    // Bit 4/5 löschen
     config |= 0x03;
     config &= ~0x30;
 
@@ -110,8 +110,8 @@ void ps2_init(void) {
     outb(0x60, config);
 
     // Beide Ports wieder aktivieren
-    outb(0x64, 0xAE); // Port 1 (Tastatur)
-    outb(0x64, 0xA8); // Port 2 (Maus)
+    outb(0x64, 0xAE); // Port 1 Tastatur
+    outb(0x64, 0xA8); // Port 2 Maus
 }
 
 void draw_cursor_bar(int on) {
@@ -145,11 +145,7 @@ void redraw_input_line(void) {
 }
 
 static void keyboard_process_scancode(unsigned char sc) {
-    // Ein anderes Fenster liegt obenauf, oder es ist gar kein Terminal
-    // offen -> Tasten werden verworfen. Der Desktop ist damit kein reiner
-    // "interaktiver Hintergrund fuers Terminal" mehr - das Terminal muss
-    // wie jedes andere Fenster erst fokussiert (angeklickt) sein, um
-    // Eingaben zu bekommen.
+
     int focused = desktop_terminal_focused();
 
     if(sc == 0xE0) { extended_prefix = 1; return; }
@@ -168,9 +164,6 @@ static void keyboard_process_scancode(unsigned char sc) {
         return;
     }
 
-    // Shift-Zustand wird bewusst IMMER mitverfolgt (auch unfokussiert),
-    // damit er nicht "haengen bleibt", wenn man waehrend gedrueckter
-    // Shift-Taste den Fokus wechselt.
     if(sc == 0x2A) { shift_state |= 1; return; }
     if(sc == 0x36) { shift_state |= 2; return; }
     if(sc == 0xAA) { shift_state &= ~1; return; }
@@ -209,7 +202,7 @@ static void keyboard_process_scancode(unsigned char sc) {
         handle_command();
         return;
     }
-    if(sc == 0x0E) { // Backspace: loescht das Zeichen VOR der Cursor-Position
+    if(sc == 0x0E) { // Backspace: löscht das Zeichen vor dem Cursor
         if(cursor_col > 0) {
             for(int i = cursor_col-1; i < input_idx-1; i++) input_buf[i] = input_buf[i+1];
             input_idx--;

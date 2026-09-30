@@ -26,7 +26,7 @@ void read_rtc_raw(unsigned char* h, unsigned char* m, unsigned char* s,
 void print_time_date(void) {
     unsigned char s,m,h,d,mo,y, s2,m2,h2,d2,mo2,y2;
 
-    // Zweimal lesen und vergleichen, falls die Uhr genau waehrend des Auslesens weiterspringt
+    // Zweimal lesen und vergleichen falls Uhr während des Auslesens weiterspringt
     do {
         read_rtc_raw(&h,&m,&s,&d,&mo,&y);
         read_rtc_raw(&h2,&m2,&s2,&d2,&mo2,&y2);
@@ -38,7 +38,7 @@ void print_time_date(void) {
         d = bcd_to_bin(d); mo = bcd_to_bin(mo); y = bcd_to_bin(y);
         h = bcd_to_bin(h & 0x7F) | (h & 0x80);
     }
-    if(!(regB & 0x02) && (h & 0x80)) { // 12-Stunden-Format mit gesetztem PM-Bit
+    if(!(regB & 0x02) && (h & 0x80)) { // 12-Stunden-Format.
         h = ((h & 0x7F) + 12) % 24;
     } else {
         h &= 0x7F;

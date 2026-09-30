@@ -171,18 +171,18 @@ static void print_hex32(unsigned int value) {
 static void goonfetch(void) {
     vga_print("\n\n");
     static const char* logo[] = {
-        "      .-GOONER-.",
+        "      .-------.",
         "     /  .---.  \\",
         "    |  / ___ \\  |",
-        "    | | |   | | |",
-        "    | | |OS | | |",
-        "    | | |___| | |",
-        "    |  \\_____/  |",
-        "     \\         /",
+        " |--| | |   | | |--|",
+        " |  |G|O|O N|E|R|  |",
+        " |  | | |O S| | |  |",
+        " |  | | \\   / | |  |",
+        " |  | |  -_-  | |  |",
+        " |--|  \\/  \\ /  |--|",
+        "    |   -___-   |",
+        "     \\/      \\ /",
         "      '-------'",
-        "        /|\\",
-        "       /_|_\\",
-        "     GOONER OS"
     };
     unsigned int file_count = 0, used_bytes = 0;
     for(int i = 0; i < FS_MAX_FILES; i++) {

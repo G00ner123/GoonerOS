@@ -1,3 +1,6 @@
+# "make run" Kompiliert es und startet QEMU
+# "make clean" Löscht alle *.bin, *elf und *.o Dateien
+
 ASM = nasm
 CC  = gcc
 LD  = ld

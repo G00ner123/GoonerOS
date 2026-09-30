@@ -16,3 +16,6 @@ Makefile Commands:
 # Shell commands are in English, commands are highly inspired by Linux.
 # if the keyboard Layout is German, type "loadkeys en" to set it to English.
 # If Booted in a VM type "help" in the shell of the System to see all available commands.
+<img width="1496" height="1124" alt="Bildschirmfoto_20260930_174352" src="https://github.com/user-attachments/assets/b6f55cb1-4ab6-4832-8f69-ca347e9fc943" />
+<img width="1503" height="1125" alt="Bildschirmfoto_20260930_174151" src="https://github.com/user-attachments/assets/b5e6e63c-e7c6-44f0-be44-34947704d600" />
+<img width="1496" height="1126" alt="Bildschirmfoto_20260930_174209" src="https://github.com/user-attachments/assets/85322f54-b135-4056-9f36-ce812f681281" />

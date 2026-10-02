@@ -31,4 +31,4 @@
 <img width="1494" height="1119" alt="grafik" src="https://github.com/user-attachments/assets/4aa91436-fff5-4196-91f8-49dbf9a7125e" />
 
 *Please fork/change if you want but keep it open source*
-_used little bit of AI for Assembly code and design decisions_
+<sub>_used little bit of AI for Assembly code and design decisions_<sub>

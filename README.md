@@ -8,7 +8,7 @@
    It is optimized to 32-bit-GCC, nasm, QEMU and a Linux System such as Mint or Arch (WSL on Windows might work, not tested).
    Hardware needed: BIOS x86-PC, VESA graphic-mode 0x4118, PS/2-Mouse and Keyboard and ATA/IDE. In QEMU thats not a problem.
 # Programms/Packages in need:
-    (names for Debian/Ubuntu)
+    (Package names for Debian/Ubuntu)
      build-essential
      gcc-multilib
      binutils

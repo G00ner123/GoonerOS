@@ -1,13 +1,13 @@
-## GoonerOS
+# GoonerOS
  Hand made hobby OS. *Experimental*! Do not flash this on a Install medium etc. Test ONLY in a VM, such as QEMU. Due to Instability, Incompatibility and lack of
  Functions/Content. (If you ignore this warning and run it on real hardware anyway, that's on you, not me/Ich wiederhole: Nur in VM Testen und NICHT auf Echter hardware, das System ist Instabil, hat Wenig funktionen und mangelt an kompatiblität.) 
 
-# Needed/Requirements:
+## Needed/Requirements:
    Needs to be compiled locally with 32-bit-GCC, and nasm or other C and assembly compilers.
    Needed to compile/boot: 32-bit-GCC, nasm, objcopy and QEMU.
    It is optimized to 32-bit-GCC, nasm, QEMU and a Linux System such as Mint or Arch (WSL on Windows might work, not tested).
    Hardware needed: BIOS x86-PC, VESA graphic-mode 0x4118, PS/2-Mouse and Keyboard and ATA/IDE. In QEMU thats not a problem.
-# Programms/Packages in need:
+### Programms/Packages in need:
     (Package names for Debian/Ubuntu)
      build-essential
      gcc-multilib
@@ -16,7 +16,7 @@
      python3
      qemu-system-x86
 
-# Makefile Commands:
+## Makefile Commands:
    "*make run*" compiles the code and starts qemu (if installed).
    "*make clean*" deletes all *.o, *.bin and *.elf binary-files, so that you can compile it from zero again (does not delete the os.img file).
 

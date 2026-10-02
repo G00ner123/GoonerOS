@@ -7,7 +7,14 @@
    Needed to compile/boot: 32-bit-GCC, nasm, objcopy and QEMU.
    It is optimized to 32-bit-GCC, nasm, QEMU and a Linux System such as Mint or Arch (WSL on Windows might work, not tested).
    Hardware needed: BIOS x86-PC, VESA graphic-mode 0x4118, PS/2-Mouse and Keyboard and ATA/IDE. In QEMU thats not a problem.
-   
+# Programms/Packages in need:
+    (names for Debian/Ubuntu)
+     build-essential
+     gcc-multilib
+     binutils
+     nasm
+     python3
+     qemu-system-x86
 
 # Makefile Commands:
    "make run" compiles the code and starts qemu (if installed).

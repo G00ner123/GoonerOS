@@ -1,11 +1,13 @@
 # GoonerOS
- Hand made hobby OS. Experimental! Do not flash this on a Install medium etc. Test only in a VM such as QEMU.
+ Hand made hobby OS. Experimental! Do not flash this on a Install medium etc. Test ONLY in a VM, such as QEMU. Due to Instability, Incompatibility and lack of
+ Functions/Content. (If you ignore this warning and run it on real hardware anyway, that's on you, not me.)
 
 # Needed/Requirements:
    Needs to be compiled locally with 32-bit-GCC, and nasm or other C and assembly compilers.
-   Needed to compile/boot: 32-bit-GCC, nasm, objcopy and QEMU (newest version of all of them).
-   It is optimized to 32-bit-GCC, nasm, QEMU and a Linux System such as Mint or Arch (WSL on Windows might work, not testet).
+   Needed to compile/boot: 32-bit-GCC, nasm, objcopy and QEMU.
+   It is optimized to 32-bit-GCC, nasm, QEMU and a Linux System such as Mint or Arch (WSL on Windows might work, not tested).
    Hardware needed: BIOS x86-PC, VESA graphic-mode 0x4118, PS/2-Mouse and Keyboard and ATA/IDE. In QEMU thats not a problem.
+   
 
 # Makefile Commands:
    "make run" compiles the code and starts qemu (if installed).

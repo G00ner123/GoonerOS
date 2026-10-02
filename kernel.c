@@ -69,9 +69,6 @@ void kernel_main(void) {
     for(;;) {
         asm volatile("hlt");
 
-        // Zeichenarbeit fuer Mausereignisse laeuft bewusst HIER (mit
-        // aktivierten Interrupts), nicht im Maus-Interrupt selbst - siehe
-        // Kommentar in mouse.c/desktop.c.
         int mx, my, mleft;
         if(mouse_poll_event(&mx, &my, &mleft))
             desktop_handle_mouse(mx, my, mleft);
@@ -81,9 +78,6 @@ void kernel_main(void) {
         if(ticks - last_blink_tick >= 300) {
             last_blink_tick = ticks;
             blink_visible = !blink_visible;
-            // Nur zeichnen, wenn das Terminal gerade das fokussierte
-            // Fenster ist - sonst blinkt der Cursor auf dem nackten
-            // Desktop oder hinter einem anderen Fenster weiter.
             if(desktop_terminal_focused())
                 draw_cursor_bar(desktop_terminal_cursor_blink_enabled() ? blink_visible : 1);
         }

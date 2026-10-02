@@ -332,8 +332,7 @@ void vga_clear(void) {
         for(int c = 0; c < TEXT_COLS; c++)
             text_buffer[r][c] = 0;
 }
-// Wie vga_clear(), leert nur den aktuellen Fensterbereich statt des
-// gesamten Bildschirms, damit hintergrund/Icons/Taskleiste nicht gelöscht werden.
+// leert nicht ganzen bild
 
 void vga_clear_region(void) {
     for(int j = term_oy; j < term_oy+term_h; j++)
@@ -572,8 +571,8 @@ void draw_heart(int cx, int cy, int scale, unsigned int color) {
     }
 }
 
-// ==================== Desktop-Vorkehrungen ====================
-// UI-Akzentfarbe
+// Desktop Vorkehrung
+// farbe
 unsigned int ui_theme_color = 0x00FFAA;
 
 void draw_window(int x, int y, int w, int h, const char* title) {

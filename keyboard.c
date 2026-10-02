@@ -106,26 +106,21 @@ void keyboard_load_layout(void) {
     }
 }
 void ps2_init(void) {
-    // Beide Ports kurz deaktivieren Ausgabepuffer leeren
     outb(0x64, 0xAD);
     outb(0x64, 0xA7);
     inb(0x60);
 
-    // Konfigurationsbyte PS/2-Controllers lesen
     outb(0x64, 0x20);
     unsigned char config = inb(0x60);
 
-    // Bit 0 = IRQ1 aktivieren, Bit 1 = IRQ12 aktivieren,
-    // Bit 4/5 löschen
     config |= 0x03;
     config &= ~0x30;
 
     outb(0x64, 0x60);
     outb(0x60, config);
 
-    // Beide Ports wieder aktivieren
-    outb(0x64, 0xAE); // Port 1 Tastatur
-    outb(0x64, 0xA8); // Port 2 Maus
+    outb(0x64, 0xAE);
+    outb(0x64, 0xA8);
 }
 
 void draw_cursor_bar(int on) {
@@ -257,7 +252,7 @@ static void keyboard_process_scancode(unsigned char sc) {
 
     if(!focused) return;
 
-    if(sc == 0x1C) { // Enter
+    if(sc == 0x1C) { 
         draw_cursor_bar(0);
         int region_x, region_y, region_w, region_h;
         vga_get_region(&region_x, &region_y, &region_w, &region_h);
@@ -269,7 +264,7 @@ static void keyboard_process_scancode(unsigned char sc) {
         shell_history_move(0);
         return;
     }
-    if(sc == 0x0E) { // Backspace: löscht das Zeichen vor dem Cursor
+    if(sc == 0x0E) { 
         if(cursor_col > 0) {
             for(int i = cursor_col-1; i < input_idx-1; i++) input_buf[i] = input_buf[i+1];
             input_idx--;

@@ -24,9 +24,9 @@ start_stage2:
     mov si, msg_getinfo_ok
     call print_string
 
-    ; BIOS-DAPs duerfen hier hoechstens 127 Sektoren laden. Vier
-    ; zusammenhaengende Transfers laden deshalb 508 Sektoren (254 KiB)
-    ; an physisch zusammenhaengende Adressen ab 0x10000.
+    ; nur 4 
+    ; sachen
+    ; laden
     mov word [dap_kernel + 2], 127
     mov word [dap_kernel + 4], 0
     mov word [dap_kernel + 6], 0x1000

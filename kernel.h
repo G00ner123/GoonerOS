@@ -30,14 +30,10 @@
 #define ATA_READ 0x20
 #define ATA_WRITE 0x30
 
-/* ==================== Dateisystem ====================
- * Bootloader liest LBA 3-510 als Kernel-Loadfenster. Das Dateisystem beginnt
- * dahinter, damit persistente Schreibvorgaenge nie Kernel
- * oder Bootcode überschreiben:
- *   LBA 512        Superblock (1 Sektor)
- *   LBA 513-514    Dateitabelle (32 Eintraege x 32 Bytes = 1024 Bytes)
- *   LBA 515+       Datenbereich, je Eintrag feste 16 Sektoren (8 KB)
- */
+// Dateisystem
+//   LBA 512        Superblock
+//   LBA 513-514    Dateitabelle
+//   LBA 515+       Datenbereich
 #define FS_MAGIC 0x474F4653u
 #define FS_SUPERBLOCK_LBA 512
 #define FS_TABLE_LBA 513
@@ -87,18 +83,18 @@ int fs_write(const char* name, const char* data, int len);
 int fs_read(const char* name, char* out, int max_len);
 int fs_check(void);
 
-/* ==================== ATA ==================== */
+// ATA
 int ata_rw_sectors(unsigned int lba, unsigned short count, unsigned short* buf, int write);
 void pci_list_devices(void);
 
-/* ==================== RTC / Uhr ==================== */
+// Uhr
 unsigned char cmos_read(unsigned char reg);
 unsigned char bcd_to_bin(unsigned char bcd);
 void read_rtc_raw(unsigned char* h, unsigned char* m, unsigned char* s,
                    unsigned char* d, unsigned char* mo, unsigned char* y);
 void print_time_date(void);
 
-/* ==================== Heap-Allokator ==================== */
+// Heap Allokator
 extern unsigned int heap_ptr;
 void* kmalloc(unsigned int size);
 void page_allocator_init(void);
@@ -132,7 +128,7 @@ int user_fault_dispatch(unsigned int error, unsigned int eip, unsigned int cs, u
 void gdt_install(void);
 void gdt_set_kernel_stack(unsigned int stack_top);
 
-/* ==================== VGA / Grafik ==================== */
+// VGA/Grafik
 extern int text_x, text_y;
 
 void vga_init(unsigned int fb_addr, unsigned int pitch, unsigned int bpp);
@@ -163,11 +159,11 @@ void draw_arch_logo(int cx, int top_y, int height, int half_width, unsigned int 
 void draw_mint_logo(int show);
 void draw_heart(int cx, int cy, int scale, unsigned int color);
 
-/* ==================== Desktop-Vorkehrungen ==================== */
+// desktop test
 extern unsigned int ui_theme_color;
 void draw_window(int x, int y, int w, int h, const char* title);
 
-/* ==================== Desktop ==================== */
+// desktop
 extern int desktop_active;
 void desktop_enter(void);
 void desktop_fullscreen(void);
@@ -188,7 +184,7 @@ extern int mint_visible;
 int mouse_get_sensitivity(void);
 void mouse_set_sensitivity(int sensitivity);
 
-/* ==================== Interrupts / PIT ==================== */
+// interrupts
 extern volatile unsigned int ticks;
 void pit_init(void);
 void pit_wait_ms(unsigned int ms);
@@ -197,7 +193,7 @@ void remap_pic(void);
 void irq_ack(unsigned char irq);
 unsigned int irq0_handler(unsigned int stack_pointer);
 
-/* ==================== Tastatur / PS2 ==================== */
+// tastatur
 #define KEYBOARD_LAYOUT_DE 0
 #define KEYBOARD_LAYOUT_EN 1
 void ps2_init(void);
@@ -218,7 +214,7 @@ void desktop_language_changed(void);
 void draw_cursor_bar(int on);
 void redraw_input_line(void);
 
-/* ==================== Maus ==================== */
+// Maus
 int mouse_init(void);
 void irq12_handler(void);
 int mouse_get_x(void);
@@ -229,7 +225,7 @@ void mouse_cursor_hide(void); // BUGFIX: vor jedem Redraw aufrufen, der Pixel un
 void mouse_set_cursor_shape(int shape);
 int mouse_poll_event(int* x, int* y, int* left);
 
-/* ==================== Shell ==================== */
+// shell
 extern char input_buf[SHELL_LINE_CAPACITY];
 extern int input_idx;
 extern int cursor_col;
@@ -250,7 +246,7 @@ unsigned int kernel_exception_dispatch(unsigned int vector, unsigned int error,
                                        unsigned int address);
 void beep(void);
 
-/* ==================== Kooperativer Scheduler ==================== */
+// scheduler
 #define SCHEDULER_MAX_TASKS 8
 #define USER_PROCESS_LIMIT 2
 #define SCHEDULER_TASK_COUNTER 0

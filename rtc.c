@@ -27,7 +27,6 @@ void read_rtc_raw(unsigned char* h, unsigned char* m, unsigned char* s,
 void print_time_date(void) {
     unsigned char s,m,h,d,mo,y, s2,m2,h2,d2,mo2,y2;
 
-    // Zweimal lesen und vergleichen falls Uhr während des Auslesens weiterspringt
     int stable = 0;
     for(int attempt = 0; attempt < 8; attempt++) {
         read_rtc_raw(&h,&m,&s,&d,&mo,&y);
@@ -43,12 +42,12 @@ void print_time_date(void) {
     }
 
     unsigned char regB = cmos_read(0x0B);
-    if(!(regB & 0x04)) { // Bit 2 = 0 -> Werte liegen als BCD vor, erst dann umrechnen
+    if(!(regB & 0x04)) { 
         s = bcd_to_bin(s); m = bcd_to_bin(m);
         d = bcd_to_bin(d); mo = bcd_to_bin(mo); y = bcd_to_bin(y);
         h = bcd_to_bin(h & 0x7F) | (h & 0x80);
     }
-    if(!(regB & 0x02) && (h & 0x80)) { // 12-Stunden-Format.
+    if(!(regB & 0x02) && (h & 0x80)) { // uhr
         h = ((h & 0x7F) + 12) % 24;
     } else {
         h &= 0x7F;

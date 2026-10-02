@@ -30,7 +30,7 @@ dap_stage2:
     db 0x10
     db 0
     dw 2
-    dw 0x7E00, 0x0000   ; offset:segment -> physisch 0x7E00
+    dw 0x7E00, 0x0000   ; physisch 0x7E00
     dq 1
 
 times 510-($-$$) db 0

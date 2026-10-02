@@ -468,18 +468,18 @@ static void print_hex32(unsigned int value) {
 static void goonfetch(void) {
     vga_print("\n\n");
     static const char* logo[] = {
-        "      .-------.",
-        "     /  .---.  \\",
-        "    |  / ___ \\  |",
-        " |--| | |   | | |--|",
-        " |  |G|O|O N|E|R|  |",
-        " |  | | |O S| | |  |",
-        " |  | | \\   / | |  |",
-        " |  | |  -_-  | |  |",
-        " |--|  \\/  \\ /  |--|",
-        "    |   -___-   |",
-        "     \\/      \\ /",
-        "      '-------'",
+        "             _              ",
+        "            | |             ",
+        "            | |             ",
+        "            '-'              ",   
+        "       __--------__            ",
+        "    _-'  /     \\   '-__        ",
+        "  _-'   |   *   |      _'        ",
+        "    '--_ \\_____/  __--'        ",
+        "        '--------'             ",
+        "            .-.              ",   
+        "            | |            ",
+        "            '-'            ",
     };
     unsigned int file_count = 0, used_bytes = 0;
     for(int i = 0; i < FS_MAX_FILES; i++) {
@@ -564,18 +564,18 @@ void reboot(void) {
     int timeout = 100000;
     do {
         status = inb(0x64);
-        if(status & 1) inb(0x60); // wartende Daten abholen, damit nicht im Weg stehen
+        if(status & 1) inb(0x60); 
         timeout--;
-    } while((status & 2) && timeout > 0); // warten bis Eingabepuffer Bit 1 leer is
+    } while((status & 2) && timeout > 0); 
     outb(0x64, 0xFE);
     for(;;) asm volatile("hlt");
 }
 
 void beep(void) {
     if(!desktop_system_sounds_enabled()) return;
-    outb(0x61, inb(0x61)|3); // macht speaker und gate 2 an
-    outb(0x43,0xB6);        // setzt PIT channel 2 auf wellen generator 
-    outb(0x42,0xA9);        // setzt frequenz auf low
+    outb(0x61, inb(0x61)|3); 
+    outb(0x43,0xB6);        
+    outb(0x42,0xA9);        
     outb(0x42,0x04);        // setzut frequenz auf high, 4A9h=1193180/ 1193=~~1kHz
 
     // beep audio
@@ -613,7 +613,7 @@ void remember_draw(int x, int y, int w, int h) {
 }
 int get_ip(char* out) {
     (void)out;
-    return 0; // (noch ?) Kein Netzwerkstack da aktuell nicht verfügbar
+    return 0; 
 }
 static int shell_is_builtin(const char* name) {
     static const char* commands[] = {
@@ -653,7 +653,7 @@ static void shell_execute_simple(void) {
         shell_status = 1;
         print_ui("Usage: make menuconfig\n", "Aufruf: make menuconfig\n");
     }
-    else if(strcmp(input_buf, "help") == 0) {
+    else if(strcmp(input_buf, "help") == 0) {   // muss ich später noch schöner machen
         print_ui("Files: ls tree find mkdir rmdir rm mv touch cat write append cp stat du df fsck\n",
                  "Dateisystem: ls tree find mkdir rmdir rm mv touch cat write append cp stat du df fsck\n");
         print_ui("Text: grep sort uniq cut tee nl fold wc head tail diff tr rev basename dirname\n",
@@ -1028,7 +1028,7 @@ static void shell_execute_simple(void) {
             seed = seed*1103515245u + 12345u;
             col_y[c] = -(int)((seed >> 8) % 700);
             seed = seed*1103515245u + 12345u;
-            col_speed[c] = 4 + (int)((seed >> 8) % 12); // 4-15 px pro Frame, unterschiedlich je Spalte
+            col_speed[c] = 4 + (int)((seed >> 8) % 12);
         }
         for(int frame = 0; frame < 260; frame++) {
             for(int c = 0; c < VESA_WIDTH/8; c++) {
@@ -1993,15 +1993,13 @@ static void shell_execute_simple(void) {
     else if(strcmp(input_buf, "logo") == 0)
         draw_arch_logo(900, 20, 330, 100, 0x1793D1);
     else if(strcmp(input_buf, "whoami") == 0) {
-        // gibt aktuell noch keine echte IP.
-        // get_ip() gibt 0 zurueck solange das so ist;
         char ip[16];
         if(get_ip(ip)) { vga_print("root@GoonerOS ("); vga_print(ip); vga_print(")\n"); }
         else vga_print("Root@GoonerOS\n");
     }
     else if(strcmp(input_buf, "exit") == 0) {
         print_ui("Shutting down...\n", "System wird heruntergefahren...\n");
-        outw(0x604, 0x2000);  // ACPI-Shutdown, funktioniert bei den meisten QEMU Standardkonfigurationen
+        outw(0x604, 0x2000);
         outw(0xB004, 0x2000); // Fallback für manche QEMU-Versionen
         for(;;) asm volatile("hlt");
     }
@@ -2021,12 +2019,12 @@ static void shell_execute_simple(void) {
     else if(strcmp(input_buf, "beep") == 0) {
         print_ui("Beep!\n", "Piep!\n"); beep();
     }
-    /* ====================  Befehle ==================== */
+    // Befehle
     else if(strncmp(input_buf, "seq ", 4) == 0) {
         char* p = &input_buf[4];
         int n = parse_int(&p);
         if(n < 1) n = 1;
-        if(n > 200) n = 200; // Sicherheitsbegrenzung, kein Rollen ins Unendliche
+        if(n > 200) n = 200; 
         for(int i = 1; i <= n; i++) { print_int(i); vga_putc('\n'); }
     }
     else if(strncmp(input_buf, "factor ", 7) == 0) {
@@ -2055,7 +2053,7 @@ static void shell_execute_simple(void) {
         char* p = &input_buf[4];
         int n = parse_int(&p);
         if(n < 0) n = 0;
-        if(n > 45) n = 45; // 32-Bit int läuft danach über
+        if(n > 45) n = 45; // 32-Bit dings läuft danach über
         int a = 0, b = 1;
         for(int i = 0; i < n; i++) { int t = a+b; a = b; b = t; }
         print_int(a); vga_putc('\n');
@@ -2064,7 +2062,7 @@ static void shell_execute_simple(void) {
         char* p = &input_buf[10];
         int n = parse_int(&p);
         if(n < 0) n = 0;
-        if(n > 12) n = 12; // 13! passt nicht in 32 Bit
+        if(n > 12) n = 12; 
         unsigned int r = 1;
         for(int i = 2; i <= n; i++) r *= i;
         print_int((int)r); vga_putc('\n');
@@ -2281,12 +2279,12 @@ static void shell_execute_simple(void) {
         draw_heart(cx, cy, scale, 0xFF1744);
         remember_draw(cx-8*scale, cy-8*scale, 16*scale, 16*scale);
         for(int s = 0; s < 10; s++)
-            pit_wait_ms(100); // ~2 Sekunden stehen lassen
+            pit_wait_ms(100); 
         int sc = scale;
         while(sc > 0) {
-            draw_heart(cx, cy, sc, 0x000000); // aktuelle Grösse löschen
+            draw_heart(cx, cy, sc, 0x000000); 
             sc--;
-            if(sc > 0) draw_heart(cx, cy, sc, 0xFF1744); // nächstkleinere Grösse
+            if(sc > 0) draw_heart(cx, cy, sc, 0xFF1744); 
             pit_wait_ms(80);
         }
         last_draw_active = 0;
@@ -2339,7 +2337,6 @@ static void shell_execute_simple(void) {
         redraw_text_buffer();
     }
     else if(strcmp(input_buf, "clock") == 0) {
-        // Echtzeit-Uhr: zeichnet nur bei Sekundenwechsel neu.
         int scale = 6, char_w = 8*scale, len = 8;
         int gx = (VESA_WIDTH - len*char_w) / 2, gy = (VESA_HEIGHT - 16*scale) / 2;
         clear_last_draw();
@@ -2374,7 +2371,7 @@ static void shell_execute_simple(void) {
         redraw_text_buffer();
     }
 
-    /* ==================== Desktop-Vorkehrungen ==================== */
+    // desktop vorbereitungk
     else if(strncmp(input_buf, "theme ", 6) == 0) {
         char* c = &input_buf[6];
         unsigned int newc = 0; int ok = 1;
@@ -2410,7 +2407,7 @@ static void shell_execute_simple(void) {
                  mouse_left_pressed() ? "gedrueckt\n" : "losgelassen\n");
     }
 
-    /* ==================== Weitere Befehle ==================== */
+    // mehr befehle
     else if(strncmp(input_buf, "append ", 7) == 0) {
         char* sp = &input_buf[7];
         while(*sp && *sp != ' ') sp++;
@@ -2452,7 +2449,7 @@ static void shell_execute_simple(void) {
         char* p = &input_buf[6];
         int secs = parse_int(&p);
         if(secs < 0) secs = 0;
-        if(secs > 30) secs = 30; // Sicherheitsbegrenzung, Shell ist blockiert
+        if(secs > 30) secs = 30; // tty blocked wegen alarm
         print_ui("Waiting ", "Warte "); print_int(secs); vga_print("s...\n");
         for(int s = 0; s < secs; s++)
             pit_wait_ms(1000);

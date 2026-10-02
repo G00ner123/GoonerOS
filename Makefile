@@ -1,5 +1,6 @@
 # "make run" Kompiliert und startet QEMU
 # "make clean" Löscht alle *.bin, *elf und *.o Dateien
+# english:
 # "make run" compiles and starts QEMU
 # "make clean" removes all of *.bin, *.elf and *.o files so that you can compile it from zero again.
 
@@ -71,5 +72,5 @@ run: os.img
 	$(QEMU) $(QEMUFLAGS)
 
 clean:
-# os.img enthält persistente Nutzerdaten, darf beim Aufräumen nicht gelöscht werden.
+# os.img enthält Nutzerdaten wird beim Aufräumen nicht gelöscht.
 	rm -f *.o *.bin *.elf

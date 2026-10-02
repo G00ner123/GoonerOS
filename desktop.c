@@ -1,12 +1,12 @@
 #include "kernel.h"
 #include "io.h"
 
-// ==================== Desktop / Fenstermanager ====================
+// Desktop
 
 int desktop_active = 0;
 static int terminal_windowed = 0;
 
-/* ---------- Icons ---------- */
+// Icons
 #define ICON_COUNT 8
 static unsigned int icon_colors[ICON_COUNT] = {
     0x36B9FF, 0x5EEB9B, 0xFFB84D, 0xB58CFF,
@@ -27,7 +27,7 @@ static int icon_y(int i) {
     return ICON_TOP + (i / ICON_COLS) * ICON_H;
 }
 
-/* ---------- Fenster ---------- */
+// Fenster
 #define TYPE_TERMINAL 0
 #define TYPE_INFO     1
 #define TYPE_CLOCK    2
@@ -94,10 +94,9 @@ static int editor_cursor_visible = 1;
 static unsigned int editor_last_blink_tick = 0;
 static const char* editor_status = "";
 
-// Von desktop_tick() einmal pro Sekunde aktualisiert, Format "HH:MM:SS"
 static char clock_cache[9] = "--:--:--";
 
-/* ---------- Vorwaertsdeklarationen ---------- */
+// Vorwärtsdeklarationen
 static unsigned int wallpaper_color_at(int y);
 static void draw_wallpaper_design(int clip_x, int clip_y, int clip_w, int clip_h);
 static void draw_wallpaper(void);
@@ -425,7 +424,7 @@ static void files_go_parent(void) {
     files_page = 0;
 }
 
-/* ---------- Hintergrund / Taskleiste / Icons ---------- */
+// Hintergrund/Taskleiste/Icons
 
 static unsigned int wallpaper_color_at(int y) {
     unsigned int t = (unsigned int)y * 255 / VESA_HEIGHT;
@@ -548,7 +547,7 @@ static void draw_icon(int i) {
         draw_char(lx+c*8, y+ICON_H-22, label[c], 0xFFFFFF, wallpaper_color_at(y+ICON_H-22));
 }
 
-/* ---------- Fensterverwaltung ---------- */
+// Fensterverwaltung 
 
 static int win_find_type(int type) {
     for(int i = 0; i < MAX_WINDOWS; i++)
@@ -556,7 +555,6 @@ static int win_find_type(int type) {
     return -1;
 }
 
-// Ist idx gerade von einem anderen (weiter vorne liegenden) Fenster verdeckt?
 static int win_occluded(int idx) {
     window_t* w = &windows[idx];
     int pos = -1;
@@ -582,9 +580,6 @@ static int win_alloc_slot(void) {
     return -1;
 }
 
-// Oeffnet ein Fenster des gegebenen Typs (oder holt es nach vorne, falls
-// schon offen - pro Typ existiert immer hoechstens eine Instanz, weil z.B.
-// der Terminal-Zustand (input_buf, text_buffer, ...) sowieso global ist).
 static int win_open(int type) {
     if(type < 0 || type >= 8) return -1;
     load_window_sizes();
@@ -617,8 +612,6 @@ static int win_open(int type) {
         vga_clear_region();
         vga_print(ui_text("GoonerOS - Windowed terminal. Drag the title bar to move,\nclick X to close.\n> ",
                           "GoonerOS - Terminal im Fenster. Titelleiste zum Verschieben ziehen,\nX schliesst das Fenster.\n> "));
-        // Bugfix: frueher wurden prompt_x/prompt_y hier nie gesetzt, wodurch
-        // der Cursor an der zuletzt bekannten (falschen) Position blinkte.
         prompt_x = text_x; prompt_y = text_y;
         cursor_col = 0; input_idx = 0;
     }
@@ -699,7 +692,7 @@ static void task_draw_number(int x, int y, unsigned int value, unsigned int colo
 static void win_render(int idx) {
     window_t* w = &windows[idx];
 
-    // Einfacher Schlagschatten (SHADOW_OFF Pixel unten/rechts sichtbar lassen)
+    // Schlagschatten
     draw_rect(w->x+SHADOW_OFF, w->y+SHADOW_OFF, w->w, w->h, 0x0A0A0A);
     draw_window(w->x, w->y, w->w, w->h, window_title(w->type));
     draw_close_button(w);
@@ -1216,11 +1209,8 @@ static void drag_outline_draw(int x, int y, int w, int h) {
     drag_outline_active = 1;
 }
 
-/* ---------- Gezielte (nicht komplette) Neuzeichnungen ---------- */
+// Neuzeichnungen
 
-// Setzt ein Rechteck auf den Wallpaper-Verlauf zurueck und malt Taskleiste/
-// Icons neu, falls sie in diesem Bereich liegen. Deutlich billiger als
-// clear_pixels_only()+draw_wallpaper() ueber den ganzen Bildschirm.
 static void erase_rect_to_desktop(int x, int y, int w, int h) {
     if(x < 0) { w += x; x = 0; }
     if(y < 0) { h += y; y = 0; }
@@ -1237,9 +1227,6 @@ static void erase_rect_to_desktop(int x, int y, int w, int h) {
     }
 }
 
-// Zeichnet alle (aktiven) Fenster neu, die das gegebene Rechteck ueberlappen -
-// in Z-Order, "except_idx" auslassen (z.B. das gerade gezogene Fenster, das
-// ohnehin gleich separat obenauf gezeichnet wird).
 static void redraw_windows_overlapping(int x, int y, int w, int h, int except_idx) {
     for(int k = 0; k < zcount; k++) {
         int idx = zorder[k];
@@ -1408,9 +1395,6 @@ static void draw_wallpaper_rect(int x, int y, int w, int h) {
             y+h > VESA_HEIGHT-TASKBAR_H ? VESA_HEIGHT-TASKBAR_H-y : h);
 }
 
-// Kompletter Redraw - bewusst NUR fuer: Desktop betreten, Themenwechsel
-// (faerbt wirklich jede Titelleiste + Taskleiste neu ein). Fuer alles andere
-// (Ziehen, Oeffnen/Schliessen, Uhr-Tick) werden gezielte Redraws benutzt.
 static void desktop_redraw_all(void) {
     mouse_cursor_hide(); // BUGFIX: erst Cursor sauber entfernen, sonst wird er als "Hintergrund" mitgeloescht/gesichert
     clear_pixels_only();
@@ -1421,7 +1405,7 @@ static void desktop_redraw_all(void) {
     mouse_refresh_cursor();
 }
 
-/* ==================== Oeffentliche API ==================== */
+// öffentliche API
 
 void desktop_enter(void) {
     desktop_active = 1;
@@ -1449,17 +1433,12 @@ void desktop_fullscreen(void) {
     vga_set_region(0, 0, TEXT_WRAP_WIDTH, VESA_HEIGHT);
     vga_clear();
     vga_print("> ");
-    // Bugfix: fehlte im Original komplett - der Eingabecursor blieb an der
-    // alten Position stehen, statt hinter dem neuen Prompt zu erscheinen.
     prompt_x = text_x; prompt_y = text_y;
     cursor_col = 0; input_idx = 0;
     blink_visible = 1;
     draw_cursor_bar(1);
 }
 
-// Ob das Terminal gerade das "fokussierte Programm" ist, also Tastatur-
-// eingaben bekommen soll: im Vollbild immer, auf dem Desktop nur wenn das
-// Terminal-Fenster existiert UND das oberste (zuletzt angeklickte) Fenster ist.
 int desktop_terminal_focused(void) {
     if(!desktop_active) return 1;
     int idx = win_find_type(TYPE_TERMINAL);
@@ -1467,9 +1446,6 @@ int desktop_terminal_focused(void) {
     return zcount > 0 && zorder[zcount-1] == idx;
 }
 
-// Wird NICHT mehr aus dem Maus-Interrupt aufgerufen, sondern von kernel.c's
-// Hauptschleife, sobald mouse_poll_event() ein neues Paket meldet - siehe
-// Erklaerung oben im Datei-Header. Erkennt Klick-Uebergaenge selbst.
 void desktop_handle_mouse(int mx, int my, int left_down) {
     static int prev_left = 0;
     if(!desktop_active) {
@@ -1486,7 +1462,7 @@ void desktop_handle_mouse(int mx, int my, int left_down) {
     int released = !left_down && prev_left;
     prev_left = left_down;
 
-    // ---- Aktives Ziehen eines Fensters ----
+    // Aktives Ziehen Fenster
     if(drag_idx >= 0) {
         if(drag_mode == 2) {
             if(released || !left_down) {
@@ -1913,7 +1889,7 @@ void desktop_handle_mouse(int mx, int my, int left_down) {
         return;
     }
 
-    // ---- Kein Fenster getroffen -> vielleicht ein Icon ----
+    // hab vergessen was hier war, irgentwas mit den icons
     for(int i = 0; i < ICON_COUNT; i++) {
         int ix = icon_x(i), iy = icon_y(i);
         if(mx >= ix && mx < ix+ICON_W && my >= iy && my < iy+ICON_H) {
@@ -1988,8 +1964,6 @@ void desktop_editor_key(char c, int special) {
     editor_dirty = 1;
 }
 
-// Von kernel_main einmal pro Sekunde aufgerufen: liest die RTC, aktualisiert
-// den Uhr-Cache und malt NUR die Taskleiste + ein evtl. offenes Uhr-Fenster neu
 void desktop_tick(void) {
     unsigned char s,m,h,d,mo,y, s2,m2,h2,d2,mo2,y2;
     int stable = 0;
@@ -2017,7 +1991,6 @@ void desktop_tick(void) {
 
     if(!desktop_active || drag_idx >= 0) return;
 
-    // BUGFIX: Hauptquelle des Einbrennens
     mouse_cursor_hide();
     draw_taskbar();
     redraw_windows_overlapping(0, VESA_HEIGHT-TASKBAR_H, VESA_WIDTH, TASKBAR_H, -1);

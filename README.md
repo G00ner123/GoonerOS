@@ -27,7 +27,7 @@
  If Booted in a VM type "help" in the shell of the System to see all available commands.
  
 <img width="1496" height="1124" alt="Bildschirmfoto_20260930_174352" src="https://github.com/user-attachments/assets/b6f55cb1-4ab6-4832-8f69-ca347e9fc943" />
-<img width="1503" height="1125" alt="Bildschirmfoto_20260930_174151" src="https://github.com/user-attachments/assets/b5e6e63c-e7c6-44f0-be44-34947704d600" />
+<img width="1493" height="1118" alt="grafik" src="https://github.com/user-attachments/assets/33b64b09-5024-4b33-b9b3-cdaaf1053c51" />
 <img width="1494" height="1119" alt="grafik" src="https://github.com/user-attachments/assets/4aa91436-fff5-4196-91f8-49dbf9a7125e" />
 
 <sub>*Please fork and modify freely — but keep it under the GPL.*<sub>

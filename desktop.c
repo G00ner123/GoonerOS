@@ -7,14 +7,10 @@ int desktop_active = 0;
 static int terminal_windowed = 0;
 
 /* ---------- Icons ---------- */
-#define ICON_COUNT 9
-static const char* icon_labels[ICON_COUNT] = {
-    "Terminal", "Info", "Clock", "Settings", "Fullscreen",
-    "Files", "Network", "Wallpaper", "Tasks"
-};
+#define ICON_COUNT 8
 static unsigned int icon_colors[ICON_COUNT] = {
     0x36B9FF, 0x5EEB9B, 0xFFB84D, 0xB58CFF,
-    0xFF5C72, 0x58D6D6, 0x6FA8FF, 0xF477C8, 0xFFD166
+    0xFF5C72, 0x58D6D6, 0x6FA8FF, 0xFFD166
 };
 #define ICON_W 120
 #define ICON_H 104
@@ -44,6 +40,7 @@ static int icon_y(int i) {
 #define MAX_WINDOWS 8
 #define CLOSE_BTN_SIZE 16
 #define SHADOW_OFF 6
+#define TITLE_GRAB_EXTRA 8
 typedef struct {
     int active;
     int type;
@@ -54,20 +51,29 @@ static window_t windows[MAX_WINDOWS];
 static int zorder[MAX_WINDOWS]; // Index in windows[], zorder[0] = hinten, zorder[zcount-1] = vorne
 static int zcount = 0;
 static int drag_idx = -1;
+static int drag_mode = 0;
+static int drag_edges = 0;
 static int drag_off_x = 0, drag_off_y = 0;
+static int resize_start_x, resize_start_y, resize_start_w, resize_start_h;
 static unsigned int drag_last_render_tick = 0;
 static int drag_outline_active = 0;
 static int drag_outline_x, drag_outline_y, drag_outline_w, drag_outline_h;
-static unsigned int drag_outline_pixels[2*VESA_WIDTH + 2*VESA_HEIGHT];
-
-static const char* win_titles[8] = {
-    "Terminal", "Info", "Clock", "Settings", "Files", "Network", "Editor", "Tasks"
+static unsigned int drag_outline_pixels[8*VESA_WIDTH + 8*VESA_HEIGHT];
+static int window_sizes[8][2] = {
+    {740,560}, {460,230}, {300,160}, {500,330},
+    {650,450}, {480,260}, {660,470}, {560,376}
 };
+static int window_sizes_loaded;
+static const char window_sizes_path[] = "winsize.cfg";
+
 static unsigned int theme_colors[6] = {0x00FFAA,0x3399FF,0xFF4444,0x55FF55,0xAA55FF,0xFFAA00};
 static int wallpaper_variant = 0;
+static int boot_logo_enabled = 1;
+static int task_selected_pid = -1;
+static int task_status = 0;
 static const char* wallpaper_names[3] = {"AQUA", "OCEAN", "VIOLET"};
 static const char desktop_preferences_path[] = "goonset.cfg";
-static const char* preferences_status = "Changes are saved automatically";
+static int preferences_status = 0;
 static int files_selected = -1;
 static int files_page = 0;
 static char files_cwd[FS_NAME_LEN];
@@ -90,6 +96,7 @@ static char clock_cache[9] = "--:--:--";
 /* ---------- Vorwaertsdeklarationen ---------- */
 static unsigned int wallpaper_color_at(int y);
 static void draw_wallpaper(void);
+static void draw_wallpaper_rect(int x, int y, int w, int h);
 static void draw_taskbar(void);
 static void draw_icon(int i);
 static void draw_icon_glyph(int i, int cx, int cy);
@@ -108,6 +115,8 @@ static int  win_hit_close(window_t* w, int mx, int my);
 static int  win_hit_titlebar(window_t* w, int mx, int my);
 static void draw_close_button(window_t* w);
 static void settings_swatch_rect(window_t* w, int i, int* sx, int* sy, int* sw, int* sh);
+static void settings_layout_rect(window_t* w, int i, int* sx, int* sy, int* sw, int* sh);
+static void settings_logo_rect(window_t* w, int* sx, int* sy, int* sw, int* sh);
 static void win_render(int idx);
 static void drag_move_window(int idx, int x, int y);
 static void drag_outline_restore(void);
@@ -118,12 +127,52 @@ static void editor_render(void);
 static int theme_color_index(void);
 static void load_desktop_preferences(void);
 static int save_desktop_preferences(void);
+static void load_window_sizes(void);
+static int save_window_sizes(void);
 static void settings_wallpaper_rect(window_t* w, int i, int* sx, int* sy, int* sw, int* sh);
+static void resize_window(int idx, int x, int y, int w, int h);
+static int window_resize_edges(window_t* w, int mx, int my);
+static void resize_clamp(window_t* w, int edges, int* x, int* y, int* width, int* height);
+static void resize_minimum(window_t* w, int* width, int* height);
+
+static const char* icon_label(int i) {
+    static const char* english[ICON_COUNT] = {
+        "Terminal", "Info", "Clock", "Settings", "Fullscreen",
+        "Files", "Network", "Tasks"
+    };
+    static const char* german[ICON_COUNT] = {
+        "Terminal", "Info", "Uhr", "Einstellungen", "Vollbild",
+        "Dateien", "Netzwerk", "Aufgaben"
+    };
+    return ui_text(english[i], german[i]);
+}
+
+static const char* window_title(int type) {
+    static const char* english[8] = {
+        "Terminal", "Info", "Clock", "Settings", "Files", "Network", "Editor", "Tasks"
+    };
+    static const char* german[8] = {
+        "Terminal", "Info", "Uhr", "Einstellungen", "Dateien", "Netzwerk", "Editor", "Aufgaben"
+    };
+    return ui_text(english[type], german[type]);
+}
 
 static void settings_wallpaper_rect(window_t* w, int i, int* sx, int* sy, int* sw, int* sh) {
     *sw = 82; *sh = 28;
     *sx = w->x + 20 + i*92;
     *sy = w->y + 112;
+}
+
+static void settings_layout_rect(window_t* w, int i, int* sx, int* sy, int* sw, int* sh) {
+    *sw = 150; *sh = 28;
+    *sx = w->x + 20 + i*168;
+    *sy = w->y + 176;
+}
+
+static void settings_logo_rect(window_t* w, int* sx, int* sy, int* sw, int* sh) {
+    *sw = 190; *sh = 28;
+    *sx = w->x + 20;
+    *sy = w->y + 226;
 }
 
 static int theme_color_index(void) {
@@ -133,39 +182,123 @@ static int theme_color_index(void) {
 }
 
 static void load_desktop_preferences(void) {
-    char config[8];
+    char config[12];
     int len = fs_read(desktop_preferences_path, config, sizeof(config));
-    if(len != 6 || config[0] != '1' || config[1] != ',' ||
-       config[3] != ',' || config[5] != '\n' ||
+    if(len == 6 && config[0] == '1' && config[1] == ',' &&
+       config[3] == ',' && config[5] == '\n' &&
+       config[2] >= '0' && config[2] <= '5' &&
+       config[4] >= '0' && config[4] <= '2') {
+        ui_theme_color = theme_colors[config[2] - '0'];
+        wallpaper_variant = config[4] - '0';
+        boot_logo_enabled = 1;
+        preferences_status = 1;
+        return;
+    }
+    if(len != 8 || config[0] != '2' || config[1] != ',' ||
+       config[3] != ',' || config[5] != ',' || config[7] != '\n' ||
        config[2] < '0' || config[2] > '5' ||
-       config[4] < '0' || config[4] > '2') {
-        preferences_status = "Changes are saved automatically";
+       config[4] < '0' || config[4] > '2' ||
+       (config[6] != '0' && config[6] != '1')) {
+        preferences_status = 0;
         return;
     }
     ui_theme_color = theme_colors[config[2] - '0'];
     wallpaper_variant = config[4] - '0';
-    preferences_status = "Settings loaded";
+    boot_logo_enabled = config[6] == '1';
+    preferences_status = 1;
 }
 
 static int save_desktop_preferences(void) {
     int color = theme_color_index();
     if(color < 0) {
-        preferences_status = "Save failed: unknown accent color";
+        preferences_status = 2;
         return 0;
     }
-    char config[6] = {'1', ',', (char)('0' + color), ',', (char)('0' + wallpaper_variant), '\n'};
+    char config[8] = {'2', ',', (char)('0' + color), ',', (char)('0' + wallpaper_variant), ',',
+                      boot_logo_enabled ? '1' : '0', '\n'};
     if(!fs_write(desktop_preferences_path, config, sizeof(config))) {
-        preferences_status = "Save failed: disk full or disk error";
+        preferences_status = 3;
         return 0;
     }
-    preferences_status = "Settings saved";
+    preferences_status = 4;
     return 1;
+}
+
+static int window_size_parse_number(const char** cursor, char delimiter, int* value) {
+    if(**cursor < '0' || **cursor > '9') return 0;
+    int number = 0;
+    do {
+        int digit = *(*cursor)++ - '0';
+        if(number > 409 || (number == 409 && digit > 6)) return 0;
+        number = number*10 + digit;
+    } while(**cursor >= '0' && **cursor <= '9');
+    if(**cursor != delimiter) return 0;
+    (*cursor)++;
+    *value = number;
+    return 1;
+}
+
+static void load_window_sizes(void) {
+    if(window_sizes_loaded) return;
+    window_sizes_loaded = 1;
+    char config[128];
+    int length = fs_read(window_sizes_path, config, sizeof(config));
+    if(length <= 0 || config[0] != '1' || config[1] != '\n') return;
+    const char* cursor = config + 2;
+    int loaded[8][2];
+    for(int i = 0; i < 8; i++) {
+        window_t window = {.type = i};
+        int min_width, min_height;
+        resize_minimum(&window, &min_width, &min_height);
+        if(!window_size_parse_number(&cursor, ',', &loaded[i][0]) ||
+           !window_size_parse_number(&cursor, '\n', &loaded[i][1]) ||
+           loaded[i][0] < min_width || loaded[i][0] > VESA_WIDTH ||
+           loaded[i][1] < min_height || loaded[i][1] > VESA_HEIGHT-TASKBAR_H)
+            return;
+    }
+    if(*cursor) return;
+    for(int i = 0; i < 8; i++) {
+        window_sizes[i][0] = loaded[i][0];
+        window_sizes[i][1] = loaded[i][1];
+    }
+}
+
+static int window_size_append_number(char* output, int* length, int value) {
+    char digits[10];
+    int count = 0;
+    do {
+        digits[count++] = (char)('0' + value % 10);
+        value /= 10;
+    } while(value && count < (int)sizeof(digits));
+    if(*length + count >= 128) return 0;
+    while(count) output[(*length)++] = digits[--count];
+    return 1;
+}
+
+static int save_window_sizes(void) {
+    char config[128];
+    int length = 0;
+    config[length++] = '1';
+    config[length++] = '\n';
+    for(int i = 0; i < 8; i++) {
+        if(!window_size_append_number(config, &length, window_sizes[i][0])) return 0;
+        config[length++] = ',';
+        if(!window_size_append_number(config, &length, window_sizes[i][1])) return 0;
+        config[length++] = '\n';
+    }
+    return fs_write(window_sizes_path, config, length);
 }
 
 int desktop_save_preferences(void) {
     int saved = save_desktop_preferences();
     if(desktop_active) desktop_redraw_all();
     return saved;
+}
+
+int desktop_boot_logo_enabled(void) {
+    load_desktop_preferences();
+    load_window_sizes();
+    return boot_logo_enabled;
 }
 
 static void editor_cursor_position(int* col, int* row) {
@@ -339,12 +472,7 @@ static void draw_icon_glyph(int i, int cx, int cy) {
             draw_rect(cx-2, cy-7, 4, 18, icon_colors[i]);
             draw_rect(cx-14, cy+1, 28, 3, icon_colors[i]);
             break;
-        case 7: // Hintergrund
-            draw_circle_filled(cx, cy, 17, icon_colors[i]);
-            draw_circle_filled(cx-7, cy-6, 4, 0xFFFFFF);
-            draw_circle_filled(cx+8, cy+7, 5, 0xFFFFFF);
-            break;
-        case 8: // Aufgaben
+        case 7: // Aufgaben
             draw_rect(cx-19, cy-15, 38, 30, 0x16283A);
             for(int row = 0; row < 3; row++) {
                 draw_rect(cx-12, cy-9+row*8, 4, 4, icon_colors[i]);
@@ -360,10 +488,11 @@ static void draw_icon(int i) {
     draw_circle_filled(cx, cy, 29, 0x122B42);
     draw_circle_filled(cx, cy, 25, icon_colors[i]);
     draw_icon_glyph(i, cx, cy);
-    int len = 0; while(icon_labels[i][len]) len++;
+    const char* label = icon_label(i);
+    int len = 0; while(label[len]) len++;
     int lx = x + (ICON_W - len*8)/2;
     for(int c = 0; c < len; c++)
-        draw_char(lx+c*8, y+ICON_H-22, icon_labels[i][c], 0xFFFFFF, wallpaper_color_at(y+ICON_H-22));
+        draw_char(lx+c*8, y+ICON_H-22, label[c], 0xFFFFFF, wallpaper_color_at(y+ICON_H-22));
 }
 
 /* ---------- Fensterverwaltung ---------- */
@@ -404,6 +533,8 @@ static int win_alloc_slot(void) {
 // schon offen - pro Typ existiert immer hoechstens eine Instanz, weil z.B.
 // der Terminal-Zustand (input_buf, text_buffer, ...) sowieso global ist).
 static int win_open(int type) {
+    if(type < 0 || type >= 8) return -1;
+    load_window_sizes();
     int existing = win_find_type(type);
     if(existing >= 0) { win_bring_front(existing); return existing; }
 
@@ -416,12 +547,14 @@ static int win_open(int type) {
         case TYPE_TERMINAL:  windows[idx].x=140; windows[idx].y=90;  windows[idx].w=740; windows[idx].h=560; break;
         case TYPE_INFO:      windows[idx].x=260; windows[idx].y=150; windows[idx].w=460; windows[idx].h=230; break;
         case TYPE_CLOCK:     windows[idx].x=400; windows[idx].y=260; windows[idx].w=300; windows[idx].h=160; break;
-        case TYPE_SETTINGS:  windows[idx].x=300; windows[idx].y=220; windows[idx].w=420; windows[idx].h=224; break;
+        case TYPE_SETTINGS:  windows[idx].x=280; windows[idx].y=190; windows[idx].w=500; windows[idx].h=330; break;
         case TYPE_FILES:     windows[idx].x=170; windows[idx].y=130; windows[idx].w=650; windows[idx].h=450; break;
         case TYPE_NETWORK:   windows[idx].x=270; windows[idx].y=200; windows[idx].w=480; windows[idx].h=260; break;
         case TYPE_EDITOR:    windows[idx].x=180; windows[idx].y=120; windows[idx].w=660; windows[idx].h=470; break;
-        case TYPE_TASKS:     windows[idx].x=250; windows[idx].y=170; windows[idx].w=520; windows[idx].h=330; break;
+        case TYPE_TASKS:     windows[idx].x=250; windows[idx].y=150; windows[idx].w=560; windows[idx].h=376; break;
     }
+    windows[idx].w = window_sizes[type][0];
+    windows[idx].h = window_sizes[type][1];
     zorder[zcount++] = idx;
 
     if(type == TYPE_TERMINAL) {
@@ -429,7 +562,8 @@ static int win_open(int type) {
         terminal_windowed = 1;
         vga_set_region(w->x+16, w->y+28, w->w-32, w->h-44);
         vga_clear_region();
-        vga_print("GoonerOS - Windowed terminal. Drag the title bar to move,\nclick X to close.\n> ");
+        vga_print(ui_text("GoonerOS - Windowed terminal. Drag the title bar to move,\nclick X to close.\n> ",
+                          "GoonerOS - Terminal im Fenster. Titelleiste zum Verschieben ziehen,\nX schliesst das Fenster.\n> "));
         // Bugfix: frueher wurden prompt_x/prompt_y hier nie gesetzt, wodurch
         // der Cursor an der zuletzt bekannten (falschen) Position blinkte.
         prompt_x = text_x; prompt_y = text_y;
@@ -451,7 +585,8 @@ static int win_hit_test(int mx, int my) {
     for(int k = zcount-1; k >= 0; k--) {
         int idx = zorder[k];
         window_t* w = &windows[idx];
-        if(mx >= w->x && mx < w->x+w->w && my >= w->y && my < w->y+w->h) return idx;
+        if(mx >= w->x && mx < w->x+w->w &&
+           my >= w->y-TITLE_GRAB_EXTRA && my < w->y+w->h) return idx;
     }
     return -1;
 }
@@ -467,7 +602,8 @@ static int win_hit_close(window_t* w, int mx, int my) {
 }
 static int win_hit_titlebar(window_t* w, int mx, int my) {
     if(win_hit_close(w, mx, my)) return 0;
-    return mx >= w->x && mx < w->x+w->w && my >= w->y && my < w->y+20;
+    return mx >= w->x && mx < w->x+w->w &&
+           my >= w->y-TITLE_GRAB_EXTRA && my < w->y+20;
 }
 
 static void draw_close_button(window_t* w) {
@@ -490,6 +626,12 @@ static void task_draw_text(int x, int y, const char* text, unsigned int color) {
         draw_char(x+i*8, y, text[i], color, 0x16283A);
 }
 
+static void task_draw_button(int x, int y, const char* text, unsigned int fill) {
+    draw_rect(x, y, 150, 28, fill);
+    for(int i = 0; text[i]; i++)
+        draw_char(x+10+i*8, y+6, text[i], 0xFFFFFF, fill);
+}
+
 static void task_draw_number(int x, int y, unsigned int value, unsigned int color) {
     char digits[10];
     int count = 0;
@@ -506,7 +648,7 @@ static void win_render(int idx) {
 
     // Einfacher Schlagschatten (SHADOW_OFF Pixel unten/rechts sichtbar lassen)
     draw_rect(w->x+SHADOW_OFF, w->y+SHADOW_OFF, w->w, w->h, 0x0A0A0A);
-    draw_window(w->x, w->y, w->w, w->h, win_titles[w->type]);
+    draw_window(w->x, w->y, w->w, w->h, window_title(w->type));
     draw_close_button(w);
 
     if(w->type == TYPE_TERMINAL) {
@@ -518,17 +660,17 @@ static void win_render(int idx) {
 
     else if(w->type == TYPE_INFO) {
         const char* lines[] = {
-            "GoonerOS System Information",
+            ui_text("GoonerOS System Information", "GoonerOS-Systeminformationen"),
             "",
-            "Kernel: 32-bit Protected Mode",
-            "Display: 1024x768 VESA framebuffer",
-            "Filesystem: ATA-backed custom FS",
-            "Mouse: PS/2 ready",
-            "Theme: Neon Aqua",
-            "Shell: gokernel shell v0.10",
-            "Desktop: windowed + taskbar",
-            "State: stable redraw pipeline",
-            "Status: ready"
+            ui_text("Kernel: 32-bit Protected Mode", "Kernel: 32-Bit Protected Mode"),
+            ui_text("Display: 1024x768 VESA framebuffer", "Anzeige: VESA-Framebuffer mit 1024x768"),
+            ui_text("Filesystem: ATA-backed custom FS", "Dateisystem: eigenes ATA-Dateisystem"),
+            ui_text("Mouse: PS/2 ready", "Maus: PS/2 bereit"),
+            ui_text("Theme: Neon Aqua", "Design: Neon-Aqua"),
+            ui_text("Shell: gokernel shell v0.10", "Shell: gokernel-Shell v0.10"),
+            ui_text("Desktop: windowed + taskbar", "Desktop: Fenster und Taskleiste"),
+            ui_text("State: stable redraw pipeline", "Zustand: stabile Neuzeichnung"),
+            ui_text("Status: ready", "Status: bereit")
         };
         for(int i = 0; i < 11; i++)
             for(int c = 0; lines[i][c]; c++)
@@ -542,7 +684,7 @@ static void win_render(int idx) {
             draw_char_scaled(gx+i*char_w, gy, clock_cache[i] ? clock_cache[i] : ' ', scale, ui_theme_color, 0x1A1A1A);
     }
     else if(w->type == TYPE_SETTINGS) {
-        const char* label = "Choose an accent color:";
+        const char* label = ui_text("Choose an accent color:", "Akzentfarbe waehlen:");
         for(int c = 0; label[c]; c++)
             draw_char(w->x+16+c*8, w->y+28, label[c], 0xDDDDDD, 0x1A1A1A);
         for(int i = 0; i < 6; i++) {
@@ -555,7 +697,7 @@ static void win_render(int idx) {
                 draw_rect(sx+sw, sy-3, 3, sh+6, 0xFFFFFF);
             }
         }
-        const char* wallpaper_label = "Wallpaper";
+        const char* wallpaper_label = ui_text("Wallpaper", "Hintergrund");
         for(int c = 0; wallpaper_label[c]; c++)
             draw_char(w->x+20+c*8, w->y+100, wallpaper_label[c], 0xDDDDDD, 0x1A1A1A);
         for(int i = 0; i < 3; i++) {
@@ -572,12 +714,55 @@ static void win_render(int idx) {
                 draw_rect(sx+sw, sy-2, 2, sh+4, 0xFFFFFF);
             }
         }
-        for(int c = 0; preferences_status[c] && c < 48; c++)
-            draw_char(w->x+20+c*8, w->y+164, preferences_status[c], 0x9AB3C1, 0x1A1A1A);
+        const char* layout_label = ui_text("Keyboard and language:", "Tastatur und Sprache:");
+        for(int c = 0; layout_label[c]; c++)
+            draw_char(w->x+20+c*8, w->y+156, layout_label[c], 0xDDDDDD, 0x1A1A1A);
+        for(int i = 0; i < 2; i++) {
+            int sx, sy, sw, sh;
+            settings_layout_rect(w, i, &sx, &sy, &sw, &sh);
+            int selected = keyboard_get_layout() == (i ? KEYBOARD_LAYOUT_EN : KEYBOARD_LAYOUT_DE);
+            unsigned int fill = selected ? ui_theme_color : 0x29495E;
+            draw_rect(sx, sy, sw, sh, fill);
+            const char* label = i ? "English / QWERTY" : "Deutsch / QWERTZ";
+            for(int c = 0; label[c]; c++)
+                draw_char(sx+8+c*8, sy+6, label[c], 0xFFFFFF, fill);
+        }
+        const char* boot_label = ui_text("Blue startup logo (next boot):", "Blaues Startlogo (ab Neustart):");
+        for(int c = 0; boot_label[c]; c++)
+            draw_char(w->x+20+c*8, w->y+208, boot_label[c], 0xDDDDDD, 0x1A1A1A);
+        int logo_x, logo_y, logo_w, logo_h;
+        settings_logo_rect(w, &logo_x, &logo_y, &logo_w, &logo_h);
+        unsigned int logo_fill = boot_logo_enabled ? ui_theme_color : 0x29495E;
+        draw_rect(logo_x, logo_y, logo_w, logo_h, logo_fill);
+        const char* logo_state = boot_logo_enabled
+            ? ui_text("Enabled", "Ein")
+            : ui_text("Disabled", "Aus");
+        for(int c = 0; logo_state[c]; c++)
+            draw_char(logo_x+8+c*8, logo_y+6, logo_state[c], 0xFFFFFF, logo_fill);
+        const char* status = preferences_status == 1
+            ? ui_text("Settings loaded", "Einstellungen geladen")
+            : preferences_status == 2
+                ? ui_text("Save failed: unknown accent color", "Speichern fehlgeschlagen: Akzentfarbe ungueltig")
+                : preferences_status == 3
+                    ? ui_text("Save failed: disk full or disk error", "Speichern fehlgeschlagen: Datentraeger voll oder fehlerhaft")
+                    : preferences_status == 4
+                        ? ui_text("Settings saved", "Einstellungen gespeichert")
+                        : preferences_status == 5
+                            ? ui_text("Keyboard layout saved", "Tastaturlayout gespeichert")
+                            : preferences_status == 6
+                                ? ui_text("Layout selected but could not be saved", "Layout gewaehlt, aber nicht gespeichert")
+                                : preferences_status == 7
+                                    ? ui_text("Window size could not be saved", "Fenstergroesse konnte nicht gespeichert werden")
+                                    : preferences_status == 8
+                                        ? ui_text("Window size saved", "Fenstergroesse gespeichert")
+                                        : ui_text("Changes are saved automatically", "Aenderungen werden automatisch gespeichert");
+        for(int c = 0; status[c] && c < 48; c++)
+            draw_char(w->x+20+c*8, w->y+280, status[c],
+                      preferences_status == 7 ? 0xFF737D : 0x9AB3C1, 0x1A1A1A);
 
     }
     else if(w->type == TYPE_FILES) {
-        const char* heading = "GOONEROS FILES";
+        const char* heading = ui_text("GOONEROS FILES", "GOONEROS-DATEIEN");
         for(int c = 0; heading[c]; c++)
             draw_char(w->x+22+c*8, w->y+34, heading[c], 0xD8F0FF, 0x16283A);
         const char* location = files_cwd[0] ? files_cwd : "/";
@@ -586,17 +771,17 @@ static void win_render(int idx) {
         draw_rect(w->x+282, w->y+24, 36, 30, 0x29495E);
         draw_char(w->x+295, w->y+31, '<', 0xFFFFFF, 0x29495E);
         draw_rect(w->x+326, w->y+24, 154, 30, 0x29495E);
-        const char* new_folder = "New Folder";
+        const char* new_folder = ui_text("New Folder", "Neuer Ordner");
         for(int c = 0; new_folder[c]; c++)
             draw_char(w->x+332+c*8, w->y+31, new_folder[c], 0xFFFFFF, 0x29495E);
         draw_rect(w->x+490, w->y+24, 140, 30, 0x2EBD85);
-        const char* create = "New File";
+        const char* create = ui_text("New File", "Neue Datei");
         for(int c = 0; create[c]; c++)
             draw_char(w->x+502+c*8, w->y+31, create[c], 0xFFFFFF, 0x2EBD85);
         draw_rect(w->x+286, w->y+58, 2, 280, 0x2A4658);
-        const char* list_label = "FILE";
-        const char* size_label = "SIZE";
-        const char* preview_label = "PREVIEW";
+        const char* list_label = ui_text("FILE", "DATEI");
+        const char* size_label = ui_text("SIZE", "GROESSE");
+        const char* preview_label = ui_text("PREVIEW", "VORSCHAU");
         for(int c = 0; list_label[c]; c++)
             draw_char(w->x+22+c*8, w->y+60, list_label[c], 0x79A9C2, 0x16283A);
         for(int c = 0; size_label[c]; c++)
@@ -619,11 +804,12 @@ static void win_render(int idx) {
         if(files_selected >= 0) {
             struct fs_entry* selected = &fs_table[files_selected];
             draw_rect(w->x+430, w->y+398, 92, 30, 0xB58CFF);
-            const char* edit = fs_is_directory(selected) ? "Open" : "Edit";
+            const char* edit = fs_is_directory(selected)
+                ? ui_text("Open", "Oeffnen") : ui_text("Edit", "Bearbeiten");
             for(int c = 0; edit[c]; c++)
                 draw_char(w->x+434+c*8, w->y+405, edit[c], 0xFFFFFF, 0xB58CFF);
             draw_rect(w->x+530, w->y+398, 96, 30, 0xA84B5A);
-            const char* remove = "Delete";
+            const char* remove = ui_text("Delete", "Loeschen");
             for(int c = 0; remove[c]; c++)
                 draw_char(w->x+537+c*8, w->y+405, remove[c], 0xFFFFFF, 0xA84B5A);
         }
@@ -650,15 +836,15 @@ static void win_render(int idx) {
             row++;
         }
         if(files_selected < 0 || files_selected >= FS_MAX_FILES || !fs_table[files_selected].used) {
-            const char* empty = "Select a file on the left.";
+            const char* empty = ui_text("Select a file on the left.", "Datei links auswaehlen.");
             for(int c = 0; empty[c]; c++)
                 draw_char(w->x+306+c*8, w->y+86, empty[c], 0x9AB3C1, 0x16283A);
         } else {
             if(fs_is_directory(&fs_table[files_selected])) {
-                const char* line = "Directory";
+                const char* line = ui_text("Directory", "Ordner");
                 for(int c = 0; line[c]; c++)
                     draw_char(w->x+306+c*8, w->y+86, line[c], 0xD8F0FF, 0x16283A);
-                const char* hint = "Open to view contents";
+                const char* hint = ui_text("Open to view contents", "Zum Anzeigen oeffnen");
                 for(int c = 0; hint[c]; c++)
                     draw_char(w->x+306+c*8, w->y+110, hint[c], 0x79A9C2, 0x16283A);
             } else {
@@ -672,7 +858,7 @@ static void win_render(int idx) {
                     col++;
                 }
                 if(files_preview[0]) {
-                    const char* hint = "Edit to open the editor";
+                    const char* hint = ui_text("Edit to open the editor", "Zum Bearbeiten im Editor oeffnen");
                     for(int c = 0; hint[c]; c++)
                         draw_char(w->x+306+c*8, w->y+326, hint[c], 0x79A9C2, 0x16283A);
                 }
@@ -680,22 +866,27 @@ static void win_render(int idx) {
         }
     }
     else if(w->type == TYPE_NETWORK) {
-        const char* title = "Network status";
+        const char* title = ui_text("Network status", "Netzwerkstatus");
         for(int c = 0; title[c]; c++)
             draw_char(w->x+22+c*8, w->y+34, title[c], 0xD8F0FF, 0x16283A);
         draw_circle_filled(w->x+72, w->y+112, 20, 0xFF5C72);
         draw_circle_filled(w->x+72, w->y+112, 10, 0x16283A);
-        const char* status = "No network driver";
+        const char* status = ui_text("No network driver", "Kein Netzwerktreiber");
         for(int c = 0; status[c]; c++)
             draw_char(w->x+112+c*8, w->y+106, status[c], 0xD8F0FF, 0x16283A);
-        const char* detail = "Ping requires a network stack";
+        const char* detail = ui_text("Ping requires a network stack", "Ping benoetigt einen Netzwerk-Stack");
         for(int c = 0; detail[c]; c++)
             draw_char(w->x+22+c*8, w->y+158, detail[c], 0x91AFC2, 0x16283A);
     }
     else if(w->type == TYPE_TASKS) {
-        task_draw_text(w->x+20, w->y+34, "Cooperative tasks", 0xD8F0FF);
-        task_draw_text(w->x+20, w->y+56, "Kernel event loop runs; jobs share time slices.", 0x91AFC2);
-        task_draw_text(w->x+20, w->y+84, "PID  TASK        STATE      PROGRESS", 0x79A9C2);
+        task_draw_text(w->x+20, w->y+34, ui_text("Cooperative tasks", "Kooperative Aufgaben"), 0xD8F0FF);
+        task_draw_text(w->x+20, w->y+56, ui_text("PID  TASK        STATE      ACTIVITY", "PID  AUFGABE     STATUS     AKTIVITAET"), 0x79A9C2);
+        unsigned int kernel_color = task_selected_pid == 1 ? 0xFFFFFF : 0x5EEB9B;
+        if(task_selected_pid == 1) draw_rect(w->x+16, w->y+82, w->w-32, 20, 0x29495E);
+        task_draw_number(w->x+20, w->y+84, 1, kernel_color);
+        task_draw_text(w->x+68, w->y+84, ui_text("Kernel", "Kernel"), kernel_color);
+        task_draw_text(w->x+170, w->y+84, ui_text("running", "aktiv"), kernel_color);
+        task_draw_text(w->x+244, w->y+84, ui_text("event loop", "Ereignisschleife"), kernel_color);
         int count = scheduler_task_count();
         for(int i = 0; i < count && i < SCHEDULER_MAX_TASKS; i++) {
             int pid, type, state;
@@ -704,22 +895,34 @@ static void win_render(int idx) {
                                         &progress, &total, &result))
                 continue;
             (void)result;
-            int y = w->y+108+i*22;
+            int y = w->y+106+i*22;
             unsigned int color = state == SCHEDULER_STATE_DONE ? 0x5EEB9B : 0xD8F0FF;
+            if(pid == task_selected_pid) {
+                draw_rect(w->x+16, y-2, w->w-32, 20, 0x29495E);
+                color = 0xFFFFFF;
+            }
             task_draw_number(w->x+20, y, (unsigned int)pid, color);
-            task_draw_text(w->x+68, y, type == SCHEDULER_TASK_CHECKSUM ? "CRC32" : "Counter", color);
-            task_draw_text(w->x+170, y, state == SCHEDULER_STATE_DONE ? "done" : "active", color);
+            task_draw_text(w->x+68, y, type == SCHEDULER_TASK_CHECKSUM ? "CRC32" : ui_text("Counter", "Zaehler"), color);
+            task_draw_text(w->x+170, y, state == SCHEDULER_STATE_DONE
+                ? ui_text("done", "fertig") : ui_text("active", "aktiv"), color);
             if(type == SCHEDULER_TASK_CHECKSUM) {
                 task_draw_number(w->x+244, y, progress, color);
                 task_draw_text(w->x+292, y, "/", color);
                 task_draw_number(w->x+308, y, total, color);
-                task_draw_text(w->x+372, y, "Bytes", color);
+                task_draw_text(w->x+372, y, ui_text("Bytes", "Bytes"), color);
             } else {
                 task_draw_number(w->x+244, y, steps, color);
-                task_draw_text(w->x+308, y, "time slices", color);
+                task_draw_text(w->x+308, y, ui_text("time slices", "Zeitscheiben"), color);
             }
         }
-        task_draw_text(w->x+20, w->y+300, "No preemptive scheduler; tasks have no separate stack.", 0x91AFC2);
+        task_draw_button(w->x+20, w->y+302, ui_text("Start counter", "Zaehler starten"), 0x2EBD85);
+        task_draw_button(w->x+184, w->y+302, ui_text("Stop selected", "Auswahl stoppen"), 0xA84B5A);
+        const char* task_message = task_status == 1
+            ? ui_text("Task limit reached.", "Aufgabenlimit erreicht.")
+            : task_status == 2
+                ? ui_text("Select a task row first.", "Zuerst eine Aufgabe auswaehlen.")
+                : ui_text("Kernel jobs use cooperative time slices.", "Kernel-Jobs teilen kooperative Zeitscheiben.");
+        task_draw_text(w->x+20, w->y+342, task_message, 0x91AFC2);
     }
     else if(w->type == TYPE_EDITOR) {
         editor_render();
@@ -730,8 +933,8 @@ static void editor_render(void) {
     int editor_idx = win_find_type(TYPE_EDITOR);
     if(editor_idx < 0) return;
     window_t* w = &windows[editor_idx];
-    const char* name_label = "Name:";
-    const char* text_label = "Content:";
+    const char* name_label = ui_text("Name:", "Name:");
+    const char* text_label = ui_text("Content:", "Inhalt:");
     for(int c = 0; name_label[c]; c++)
         draw_char(w->x+22+c*8, w->y+38, name_label[c], 0xD8F0FF, 0x16283A);
     for(int c = 0; c < editor_name_len; c++)
@@ -740,7 +943,7 @@ static void editor_render(void) {
         draw_rect(w->x+80+editor_name_len*8, w->y+39, 2, 14, ui_theme_color);
     }
     if(editor_directory) {
-        const char* directory_note = "New directory in the current folder";
+        const char* directory_note = ui_text("New directory in the current folder", "Neuer Ordner im aktuellen Verzeichnis");
         for(int c = 0; directory_note[c]; c++)
             draw_char(w->x+22+c*8, w->y+82, directory_note[c], 0xD8F0FF, 0x16283A);
     } else {
@@ -760,8 +963,8 @@ static void editor_render(void) {
     }
     draw_rect(w->x+22, w->y+400, 120, 28, 0x2EBD85);
     draw_rect(w->x+162, w->y+400, 120, 28, 0xA84B5A);
-    const char* save = "Save";
-    const char* cancel = "Cancel";
+    const char* save = ui_text("Save", "Speichern");
+    const char* cancel = ui_text("Cancel", "Abbrechen");
     for(int c = 0; save[c]; c++) draw_char(w->x+34+c*8, w->y+406, save[c], 0xFFFFFF, 0x2EBD85);
     for(int c = 0; cancel[c]; c++) draw_char(w->x+174+c*8, w->y+406, cancel[c], 0xFFFFFF, 0xA84B5A);
     for(int c = 0; editor_status[c] && c < 42; c++)
@@ -796,39 +999,126 @@ static void drag_move_window(int idx, int x, int y) {
     win_render(idx);
 }
 
+static int window_resize_edges(window_t* w, int mx, int my) {
+    if(mx < w->x || mx >= w->x+w->w || my < w->y || my >= w->y+w->h) return 0;
+    int edges = 0;
+    if(mx < w->x+8) edges |= 1;
+    if(mx >= w->x+w->w-8) edges |= 2;
+    if(my < w->y+8) edges |= 4;
+    if(my >= w->y+w->h-8) edges |= 8;
+    return edges;
+}
+
+static void resize_minimum(window_t* w, int* width, int* height) {
+    switch(w->type) {
+        case TYPE_TERMINAL: *width = 300; *height = 220; break;
+        case TYPE_INFO: *width = 460; *height = 230; break;
+        case TYPE_CLOCK: *width = 160; *height = 100; break;
+        case TYPE_SETTINGS: *width = 480; *height = 320; break;
+        case TYPE_FILES: *width = 650; *height = 450; break;
+        case TYPE_NETWORK: *width = 480; *height = 260; break;
+        case TYPE_EDITOR: *width = 660; *height = 470; break;
+        case TYPE_TASKS: *width = 520; *height = 376; break;
+        default: *width = 200; *height = 150; break;
+    }
+}
+
+static void resize_clamp(window_t* w, int edges, int* x, int* y, int* width, int* height) {
+    int min_width, min_height;
+    resize_minimum(w, &min_width, &min_height);
+    if(*width < min_width) {
+        if(edges & 1) *x = w->x + w->w - min_width;
+        *width = min_width;
+    }
+    if(*height < min_height) {
+        if(edges & 4) *y = w->y + w->h - min_height;
+        *height = min_height;
+    }
+    if(*x < 0) {
+        *x = 0;
+        if(edges & 1) *width = w->x + w->w;
+    }
+    if(*y < 0) {
+        *y = 0;
+        if(edges & 4) *height = w->y + w->h;
+    }
+    if(*x + min_width > VESA_WIDTH) *x = VESA_WIDTH - min_width;
+    if(*y + min_height > VESA_HEIGHT-TASKBAR_H) *y = VESA_HEIGHT-TASKBAR_H-min_height;
+    if(*x + *width > VESA_WIDTH) *width = VESA_WIDTH - *x;
+    if(*y + *height > VESA_HEIGHT-TASKBAR_H)
+        *height = VESA_HEIGHT-TASKBAR_H-*y;
+    if(*width < min_width) *width = min_width;
+    if(*height < min_height) *height = min_height;
+}
+
+static void resize_window(int idx, int x, int y, int width, int height) {
+    window_t* w = &windows[idx];
+    resize_clamp(w, drag_edges, &x, &y, &width, &height);
+    if(x == w->x && y == w->y && width == w->w && height == w->h) return;
+    int old_x = w->x, old_y = w->y, old_w = w->w, old_h = w->h;
+    erase_rect_to_desktop(old_x, old_y, old_w+SHADOW_OFF, old_h+SHADOW_OFF);
+    redraw_windows_overlapping(old_x, old_y, old_w+SHADOW_OFF, old_h+SHADOW_OFF, idx);
+    w->x = x;
+    w->y = y;
+    w->w = width;
+    w->h = height;
+    window_sizes[w->type][0] = width;
+    window_sizes[w->type][1] = height;
+    preferences_status = save_window_sizes() ? 8 : 7;
+    if(w->type == TYPE_TERMINAL) {
+        prompt_x += x-old_x;
+        prompt_y += y-old_y;
+        text_x += x-old_x;
+        text_y += y-old_y;
+        vga_set_region(w->x+16, w->y+28, w->w-32, w->h-44);
+    }
+    win_render(idx);
+}
+
 static void drag_outline_restore(void) {
     if(!drag_outline_active) return;
     int x = drag_outline_x, y = drag_outline_y;
     int w = drag_outline_w, h = drag_outline_h;
     int pos = 0;
-    for(int xx = 0; xx < w; xx++) put_pixel(x+xx, y, drag_outline_pixels[pos++]);
-    for(int xx = 0; xx < w; xx++) put_pixel(x+xx, y+h-1, drag_outline_pixels[pos++]);
-    for(int yy = 1; yy < h-1; yy++) put_pixel(x, y+yy, drag_outline_pixels[pos++]);
-    for(int yy = 1; yy < h-1; yy++) put_pixel(x+w-1, y+yy, drag_outline_pixels[pos++]);
+    for(int layer = 0; layer < 4; layer++) {
+        int left = x + layer, top = y + layer;
+        int right = x + w - 1 - layer, bottom = y + h - 1 - layer;
+        for(int xx = left; xx <= right; xx++) put_pixel(xx, top, drag_outline_pixels[pos++]);
+        for(int xx = left; xx <= right; xx++) put_pixel(xx, bottom, drag_outline_pixels[pos++]);
+        for(int yy = top + 1; yy < bottom; yy++) put_pixel(left, yy, drag_outline_pixels[pos++]);
+        for(int yy = top + 1; yy < bottom; yy++) put_pixel(right, yy, drag_outline_pixels[pos++]);
+    }
     drag_outline_active = 0;
 }
 
 static void drag_outline_draw(int x, int y, int w, int h) {
-    if(w <= 0 || h <= 1 || 2*w + 2*(h-2) > (int)(sizeof(drag_outline_pixels)/sizeof(drag_outline_pixels[0])))
+    if(w <= 2 || h <= 2 ||
+       8*w + 8*h > (int)(sizeof(drag_outline_pixels)/sizeof(drag_outline_pixels[0])))
         return;
     drag_outline_x = x; drag_outline_y = y;
     drag_outline_w = w; drag_outline_h = h;
     int pos = 0;
-    for(int xx = 0; xx < w; xx++) {
-        drag_outline_pixels[pos++] = get_pixel(x+xx, y);
-        put_pixel(x+xx, y, 0xFFFFFF);
-    }
-    for(int xx = 0; xx < w; xx++) {
-        drag_outline_pixels[pos++] = get_pixel(x+xx, y+h-1);
-        put_pixel(x+xx, y+h-1, 0xFFFFFF);
-    }
-    for(int yy = 1; yy < h-1; yy++) {
-        drag_outline_pixels[pos++] = get_pixel(x, y+yy);
-        put_pixel(x, y+yy, 0xFFFFFF);
-    }
-    for(int yy = 1; yy < h-1; yy++) {
-        drag_outline_pixels[pos++] = get_pixel(x+w-1, y+yy);
-        put_pixel(x+w-1, y+yy, 0xFFFFFF);
+    for(int layer = 0; layer < 4; layer++) {
+        int left = x + layer, top = y + layer;
+        int right = x + w - 1 - layer, bottom = y + h - 1 - layer;
+        unsigned int color = layer == 0 ? 0x081522
+            : layer == 2 ? 0xFFFFFF : ui_theme_color;
+        for(int xx = left; xx <= right; xx++) {
+            drag_outline_pixels[pos++] = get_pixel(xx, top);
+            put_pixel(xx, top, color);
+        }
+        for(int xx = left; xx <= right; xx++) {
+            drag_outline_pixels[pos++] = get_pixel(xx, bottom);
+            put_pixel(xx, bottom, color);
+        }
+        for(int yy = top + 1; yy < bottom; yy++) {
+            drag_outline_pixels[pos++] = get_pixel(left, yy);
+            put_pixel(left, yy, color);
+        }
+        for(int yy = top + 1; yy < bottom; yy++) {
+            drag_outline_pixels[pos++] = get_pixel(right, yy);
+            put_pixel(right, yy, color);
+        }
     }
     drag_outline_active = 1;
 }
@@ -845,9 +1135,7 @@ static void erase_rect_to_desktop(int x, int y, int w, int h) {
     if(y + h > VESA_HEIGHT) h = VESA_HEIGHT - y;
     if(w <= 0 || h <= 0) return;
 
-    for(int yy = y; yy < y+h; yy++)
-        for(int xx = x; xx < x+w; xx++)
-            put_pixel(xx, yy, wallpaper_pixel_at(xx, yy));
+    draw_wallpaper_rect(x, y, w, h);
 
     if(y + h > VESA_HEIGHT - TASKBAR_H) draw_taskbar();
     for(int i = 0; i < ICON_COUNT; i++) {
@@ -866,6 +1154,45 @@ static void redraw_windows_overlapping(int x, int y, int w, int h, int except_id
         window_t* win = &windows[idx];
         if(win->x < x+w && win->x+win->w > x && win->y < y+h && win->y+win->h > y)
             win_render(idx);
+    }
+}
+
+static void draw_wallpaper_circle_clipped(int cx, int cy, int radius, unsigned int color,
+                                         int clip_x, int clip_y, int clip_w, int clip_h) {
+    int top = cy-radius > clip_y ? cy-radius : clip_y;
+    int bottom = cy+radius < clip_y+clip_h ? cy+radius : clip_y+clip_h-1;
+    int left = cx-radius > clip_x ? cx-radius : clip_x;
+    int right = cx+radius < clip_x+clip_w ? cx+radius : clip_x+clip_w-1;
+    int radius_squared = radius*radius;
+    if(left > right || top > bottom) return;
+    for(int yy = top; yy <= bottom; yy++) {
+        int dy = yy-cy;
+        int dx = radius;
+        while(dx*dx+dy*dy > radius_squared) dx--;
+        int span_left = cx-dx > left ? cx-dx : left;
+        int span_right = cx+dx < right ? cx+dx : right;
+        if(span_left <= span_right) draw_rect(span_left, yy, span_right-span_left+1, 1, color);
+    }
+}
+
+static void draw_wallpaper_rect(int x, int y, int w, int h) {
+    for(int yy = y; yy < y+h; yy++) {
+        unsigned int color = (yy % 48) == 0 ? 0x18324A : wallpaper_color_at(yy);
+        draw_rect(x, yy, w, 1, color);
+    }
+    for(int i = 0; i < 12; i++) {
+        int line_x = 32+i*89;
+        if(line_x >= x && line_x < x+w) draw_rect(line_x, y, 1, h, 0x0F2030);
+    }
+    for(int i = 0; i < 9; i++) {
+        int cx = 70+i*123;
+        int cy = 300+(i%3)*120;
+        if(cx+70 < x || cx-70 >= x+w || cy+70 < y || cy-70 >= y+h) continue;
+        draw_wallpaper_circle_clipped(cx, cy, 70,
+            wallpaper_variant == 2 ? 0x321A4A : 0x102C4A, x, y, w, h);
+        draw_wallpaper_circle_clipped(cx, cy, 54,
+            wallpaper_variant == 1 ? 0x123D5A : 0x14243F, x, y, w, h);
+        draw_wallpaper_circle_clipped(cx, cy, 8, ui_theme_color, x, y, w, h);
     }
 }
 
@@ -889,16 +1216,24 @@ void desktop_enter(void) {
     terminal_windowed = 0;
     zcount = 0;
     drag_idx = -1;
+    drag_mode = 0;
+    mouse_set_cursor_shape(0);
     drag_outline_restore();
     load_desktop_preferences();
     for(int i = 0; i < MAX_WINDOWS; i++) windows[i].active = 0;
     desktop_redraw_all();
 }
 
+void desktop_language_changed(void) {
+    if(desktop_active) desktop_redraw_all();
+}
+
 void desktop_fullscreen(void) {
     desktop_active = 0;
     terminal_windowed = 0;
     drag_idx = -1;
+    drag_mode = 0;
+    mouse_set_cursor_shape(0);
     vga_set_region(0, 0, TEXT_WRAP_WIDTH, VESA_HEIGHT);
     vga_clear();
     vga_print("> ");
@@ -929,6 +1264,8 @@ void desktop_handle_mouse(int mx, int my, int left_down) {
         prev_left = left_down;
         drag_outline_restore();
         drag_idx = -1;
+        drag_mode = 0;
+        mouse_set_cursor_shape(0);
         mouse_refresh_cursor();
         return;
     }
@@ -939,12 +1276,55 @@ void desktop_handle_mouse(int mx, int my, int left_down) {
 
     // ---- Aktives Ziehen eines Fensters ----
     if(drag_idx >= 0) {
+        if(drag_mode == 2) {
+            if(released || !left_down) {
+                int dx = mx - resize_start_x;
+                int dy = my - resize_start_y;
+                int x = windows[drag_idx].x;
+                int y = windows[drag_idx].y;
+                int width = resize_start_w;
+                int height = resize_start_h;
+                if(drag_edges & 1) { x += dx; width -= dx; }
+                if(drag_edges & 2) width += dx;
+                if(drag_edges & 4) { y += dy; height -= dy; }
+                if(drag_edges & 8) height += dy;
+                resize_clamp(&windows[drag_idx], drag_edges, &x, &y, &width, &height);
+                mouse_cursor_hide();
+                drag_outline_restore();
+                resize_window(drag_idx, x, y, width, height);
+                mouse_set_cursor_shape(0);
+                mouse_refresh_cursor();
+                drag_idx = -1;
+                drag_mode = 0;
+                return;
+            }
+            if(ticks - drag_last_render_tick >= 16) {
+                int dx = mx - resize_start_x;
+                int dy = my - resize_start_y;
+                int x = windows[drag_idx].x;
+                int y = windows[drag_idx].y;
+                int width = resize_start_w;
+                int height = resize_start_h;
+                if(drag_edges & 1) { x += dx; width -= dx; }
+                if(drag_edges & 2) width += dx;
+                if(drag_edges & 4) { y += dy; height -= dy; }
+                if(drag_edges & 8) height += dy;
+                resize_clamp(&windows[drag_idx], drag_edges, &x, &y, &width, &height);
+                mouse_cursor_hide();
+                drag_outline_restore();
+                drag_outline_draw(x, y, width, height);
+                drag_last_render_tick = ticks;
+                mouse_refresh_cursor();
+            } else mouse_refresh_cursor();
+            return;
+        }
         if(released || !left_down) {
             mouse_cursor_hide();
             drag_outline_restore();
             drag_move_window(drag_idx, mx-drag_off_x, my-drag_off_y);
             mouse_refresh_cursor();
             drag_idx = -1;
+            drag_mode = 0;
             return;
         }
         if(ticks - drag_last_render_tick >= 16) {
@@ -960,6 +1340,18 @@ void desktop_handle_mouse(int mx, int my, int left_down) {
         }
         return;
     }
+
+    int hovered = win_hit_test(mx, my);
+    int hover_edges = hovered >= 0 ? window_resize_edges(&windows[hovered], mx, my) : 0;
+    int cursor = 0;
+    if(hover_edges) {
+        if((hover_edges & 3) && (hover_edges & 12))
+            cursor = ((hover_edges & 1) && (hover_edges & 4)) ||
+                     ((hover_edges & 2) && (hover_edges & 8)) ? 3 : 4;
+        else if(hover_edges & 3) cursor = 1;
+        else cursor = 2;
+    }
+    mouse_set_cursor_shape(cursor);
 
     if(!pressed) {
         mouse_refresh_cursor();
@@ -983,8 +1375,27 @@ void desktop_handle_mouse(int mx, int my, int left_down) {
             mouse_refresh_cursor();
             return;
         }
+        int edges = window_resize_edges(w, mx, my);
+        if(edges) {
+            drag_idx = idx;
+            drag_mode = 2;
+            drag_edges = edges;
+            resize_start_x = mx;
+            resize_start_y = my;
+            resize_start_w = w->w;
+            resize_start_h = w->h;
+            drag_last_render_tick = ticks;
+            drag_outline_active = 0;
+            int resize_cursor = (edges & 3) && (edges & 12)
+                ? (((edges & 1) && (edges & 4)) || ((edges & 2) && (edges & 8)) ? 3 : 4)
+                : (edges & 3) ? 1 : 2;
+            mouse_set_cursor_shape(resize_cursor);
+            if(!was_front) { mouse_cursor_hide(); win_render(idx); mouse_refresh_cursor(); }
+            return;
+        }
         if(win_hit_titlebar(w, mx, my)) {
             drag_idx = idx;
+            drag_mode = 1;
             drag_off_x = mx - w->x;
             drag_off_y = my - w->y;
             drag_last_render_tick = ticks;
@@ -995,7 +1406,7 @@ void desktop_handle_mouse(int mx, int my, int left_down) {
         if(w->type == TYPE_EDITOR) {
             if(mx >= w->x+22 && mx < w->x+142 && my >= w->y+400 && my < w->y+428) {
                 if(editor_name_len == 0) {
-                    editor_status = "Enter a file name.";
+                    editor_status = ui_text("Enter a file name.", "Dateinamen eingeben.");
                     mouse_cursor_hide(); win_render(idx); mouse_refresh_cursor();
                     return;
                 }
@@ -1007,12 +1418,12 @@ void desktop_handle_mouse(int mx, int my, int left_down) {
                     else for(int i = 0; i <= len; i++) save_path[i] = editor_name[i];
                 } else path_ok = files_make_path(editor_name, save_path);
                 if(!path_ok) {
-                    editor_status = "Path is too long or invalid.";
+                    editor_status = ui_text("Path is too long or invalid.", "Pfad ist zu lang oder ungueltig.");
                     mouse_cursor_hide(); win_render(idx); mouse_refresh_cursor();
                     return;
                 }
                 if(!editor_existing && fs_find(save_path)) {
-                    editor_status = "That name already exists.";
+                    editor_status = ui_text("That name already exists.", "Dieser Name ist bereits vorhanden.");
                     mouse_cursor_hide(); win_render(idx); mouse_refresh_cursor();
                     return;
                 }
@@ -1020,8 +1431,10 @@ void desktop_handle_mouse(int mx, int my, int left_down) {
                                              : fs_write(save_path, editor_text, editor_text_len);
                 if(!saved) {
                     editor_status = editor_directory
-                        ? "Could not create directory (parent missing or disk full)."
-                        : "Save failed (check disk space).";
+                        ? ui_text("Could not create directory (parent missing or disk full).",
+                                  "Ordner nicht erstellt (Elternordner fehlt oder Datentraeger voll).")
+                        : ui_text("Save failed (check disk space).",
+                                  "Speichern fehlgeschlagen (Datentraeger pruefen).");
                     mouse_cursor_hide(); win_render(idx); mouse_refresh_cursor();
                     return;
                 }
@@ -1041,7 +1454,7 @@ void desktop_handle_mouse(int mx, int my, int left_down) {
                         if(n > 0) while(j < n && j < (int)sizeof(files_preview)-1) { files_preview[j] = data[j]; j++; }
                         files_preview[j] = 0;
                         if(n < 0) {
-                            const char* error = "Could not read the preview.";
+                            const char* error = ui_text("Could not read the preview.", "Vorschau konnte nicht gelesen werden.");
                             for(j = 0; error[j] && j < (int)sizeof(files_preview)-1; j++) files_preview[j] = error[j];
                             files_preview[j] = 0;
                         }
@@ -1137,7 +1550,7 @@ void desktop_handle_mouse(int mx, int my, int left_down) {
                     editor_text_len = n;
                     for(int k = 0; k < n; k++) editor_text[k] = data[k];
                     editor_status = "";
-                } else editor_status = "Could not read the file.";
+                } else editor_status = ui_text("Could not read the file.", "Datei konnte nicht gelesen werden.");
                 editor_text[editor_text_len] = 0;
                 editor_cursor_visible = 1; editor_last_blink_tick = ticks;
                 int edit = win_open(TYPE_EDITOR);
@@ -1153,7 +1566,7 @@ void desktop_handle_mouse(int mx, int my, int left_down) {
                     files_selected = -1;
                     files_preview[0] = 0;
                 } else {
-                    const char* error = "Delete failed.";
+                    const char* error = ui_text("Delete failed.", "Loeschen fehlgeschlagen.");
                     int j = 0;
                     while(error[j] && j < (int)sizeof(files_preview)-1) { files_preview[j] = error[j]; j++; }
                     files_preview[j] = 0;
@@ -1179,12 +1592,13 @@ void desktop_handle_mouse(int mx, int my, int left_down) {
                     if(n > 0) while(j < n && j < (int)sizeof(files_preview)-1) { files_preview[j] = data[j]; j++; }
                     files_preview[j] = 0;
                     if(n < 0) {
-                        const char* error = "Could not read the preview.";
+                        const char* error = ui_text("Could not read the preview.", "Vorschau konnte nicht gelesen werden.");
                         for(j = 0; error[j] && j < (int)sizeof(files_preview)-1; j++) files_preview[j] = error[j];
                         files_preview[j] = 0;
                     }
                     if(fs_is_directory(&fs_table[found])) {
-                        const char* directory = "Directory - open to view contents";
+                        const char* directory = ui_text("Directory - open to view contents",
+                                                        "Ordner - zum Anzeigen oeffnen");
                         for(j = 0; directory[j] && j < (int)sizeof(files_preview)-1; j++) files_preview[j] = directory[j];
                         files_preview[j] = 0;
                     }
@@ -1211,6 +1625,64 @@ void desktop_handle_mouse(int mx, int my, int left_down) {
                     return;
                 }
             }
+            for(int i = 0; i < 2; i++) {
+                int sx, sy, sw, sh;
+                settings_layout_rect(w, i, &sx, &sy, &sw, &sh);
+                if(mx >= sx && mx < sx+sw && my >= sy && my < sy+sh) {
+                    keyboard_set_layout(i ? KEYBOARD_LAYOUT_EN : KEYBOARD_LAYOUT_DE);
+                    if(keyboard_save_layout()) preferences_status = 5;
+                    else preferences_status = 6;
+                    mouse_cursor_hide(); win_render(idx); mouse_refresh_cursor();
+                    return;
+                }
+            }
+            int logo_x, logo_y, logo_w, logo_h;
+            settings_logo_rect(w, &logo_x, &logo_y, &logo_w, &logo_h);
+            if(mx >= logo_x && mx < logo_x+logo_w && my >= logo_y && my < logo_y+logo_h) {
+                boot_logo_enabled = !boot_logo_enabled;
+                desktop_save_preferences();
+                return;
+            }
+        }
+        if(w->type == TYPE_TASKS) {
+            if(mx >= w->x+20 && mx < w->x+170 && my >= w->y+302 && my < w->y+330) {
+                task_status = scheduler_spawn_counter() < 0 ? 1 : 0;
+                mouse_cursor_hide(); win_render(idx); mouse_refresh_cursor();
+                return;
+            }
+            if(mx >= w->x+184 && mx < w->x+334 && my >= w->y+302 && my < w->y+330) {
+                if(task_selected_pid == 1)
+                    kernel_panic(ui_text(
+                        "Fatal invariant: PID 1 is protected; terminating it would orphan the kernel event loop.",
+                        "Fataler Invariantenfehler: PID 1 ist geschuetzt; sein Ende wuerde die Kernel-Ereignisschleife verwaisen lassen."));
+                else if(task_selected_pid < 2) task_status = 2;
+                else {
+                    scheduler_kill(task_selected_pid);
+                    task_selected_pid = -1;
+                    task_status = 0;
+                }
+                mouse_cursor_hide(); win_render(idx); mouse_refresh_cursor();
+                return;
+            }
+            if(my >= w->y+82 && my < w->y+104) {
+                task_selected_pid = 1;
+                task_status = 0;
+                mouse_cursor_hide(); win_render(idx); mouse_refresh_cursor();
+                return;
+            }
+            int row = (my - (w->y+106)) / 22;
+            if(row >= 0 && row < scheduler_task_count() &&
+               my >= w->y+106 && my < w->y+302) {
+                int pid, type, state;
+                unsigned int steps, progress, total, result;
+                if(scheduler_get_task_info(row, &pid, &type, &state, &steps,
+                                           &progress, &total, &result)) {
+                    task_selected_pid = pid;
+                    task_status = 0;
+                }
+                mouse_cursor_hide(); win_render(idx); mouse_refresh_cursor();
+                return;
+            }
         }
         if(!was_front) { mouse_cursor_hide(); win_render(idx); mouse_refresh_cursor(); }
         return;
@@ -1229,11 +1701,10 @@ void desktop_handle_mouse(int mx, int my, int left_down) {
             else if(i == 5) idx2 = win_open(TYPE_FILES);
             else if(i == 6) idx2 = win_open(TYPE_NETWORK);
             else if(i == 7) {
-                wallpaper_variant = (wallpaper_variant + 1) % 3;
-                desktop_save_preferences();
-                return;
+                task_selected_pid = -1;
+                task_status = 0;
+                idx2 = win_open(TYPE_TASKS);
             }
-            else if(i == 8) idx2 = win_open(TYPE_TASKS);
             if(idx2 >= 0) { mouse_cursor_hide(); win_render(idx2); mouse_refresh_cursor(); }
             return;
         }

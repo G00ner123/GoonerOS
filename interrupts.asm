@@ -5,24 +5,91 @@ align 4
 extern irq0_handler
 extern irq1_handler
 extern irq12_handler
+extern kernel_exception_dispatch
+extern user_exception_return
 
-global isr0
-global isr1
 global irq0
 global irq1
 global irq12
+global exception_stub_table
 
-isr0:
+%macro EXCEPTION_NO_ERROR 1
+exception_%1:
     cli
     push dword 0
-    push dword 0
-    jmp isr_common_stub
+    push dword %1
+    jmp near exception_common_stub
+%endmacro
 
-isr1:
+%macro EXCEPTION_ERROR 1
+exception_%1:
     cli
-    push dword 0
-    push dword 1
-    jmp isr_common_stub
+    push dword %1
+    jmp near exception_common_stub
+%endmacro
+
+EXCEPTION_NO_ERROR 0
+EXCEPTION_NO_ERROR 1
+EXCEPTION_NO_ERROR 2
+EXCEPTION_NO_ERROR 3
+EXCEPTION_NO_ERROR 4
+EXCEPTION_NO_ERROR 5
+EXCEPTION_NO_ERROR 6
+EXCEPTION_NO_ERROR 7
+EXCEPTION_ERROR 8
+EXCEPTION_NO_ERROR 9
+EXCEPTION_ERROR 10
+EXCEPTION_ERROR 11
+EXCEPTION_ERROR 12
+EXCEPTION_ERROR 13
+EXCEPTION_ERROR 14
+EXCEPTION_NO_ERROR 15
+EXCEPTION_NO_ERROR 16
+EXCEPTION_ERROR 17
+EXCEPTION_NO_ERROR 18
+EXCEPTION_NO_ERROR 19
+EXCEPTION_NO_ERROR 20
+EXCEPTION_ERROR 21
+EXCEPTION_NO_ERROR 22
+EXCEPTION_NO_ERROR 23
+EXCEPTION_NO_ERROR 24
+EXCEPTION_NO_ERROR 25
+EXCEPTION_NO_ERROR 26
+EXCEPTION_NO_ERROR 27
+EXCEPTION_NO_ERROR 28
+EXCEPTION_ERROR 29
+EXCEPTION_ERROR 30
+EXCEPTION_NO_ERROR 31
+
+section .rodata
+exception_stub_table:
+%assign i 0
+%rep 32
+    dd exception_%+i
+%assign i i+1
+%endrep
+
+section .text
+exception_common_stub:
+    pusha
+    cld
+    mov eax, [esp + 32]
+    mov ebx, [esp + 36]
+    mov ecx, [esp + 40]
+    mov edx, [esp + 44]
+    mov esi, cr2
+    push esi
+    push edx
+    push ecx
+    push ebx
+    push eax
+    call kernel_exception_dispatch
+    add esp, 20
+    test eax, eax
+    jnz user_exception_return
+    popa
+    add esp, 8
+    iretd
 
 irq0:
     cli
@@ -41,13 +108,6 @@ irq12:
     push dword 0
     push dword 44
     jmp irq_common_stub
-
-isr_common_stub:
-    pusha
-    call isr_handler_stub
-    popa
-    add esp, 8
-    iret
 
 irq_common_stub:
     pusha
@@ -79,6 +139,3 @@ irq_common_stub:
     add esp, 8
     sti
     iret
-
-isr_handler_stub:
-    ret

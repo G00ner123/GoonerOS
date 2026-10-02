@@ -13,7 +13,9 @@ struct idt_entry { unsigned short base_lo; unsigned short sel; unsigned char alw
 struct idt_ptr { unsigned short limit; unsigned int base; } __attribute__((packed));
 static struct idt_entry idt[256];
 static struct idt_ptr idtp;
-extern void isr0(); extern void isr1(); extern void irq0(); extern void irq1(); extern void irq12();
+extern unsigned int exception_stub_table[];
+extern void irq0(); extern void irq1(); extern void irq12();
+extern void isr_syscall();
 
 void idt_set_gate(unsigned char num, unsigned int base, unsigned short sel, unsigned char flags) {
     idt[num].base_lo = base & 0xFFFF;
@@ -24,11 +26,12 @@ void idt_install(void) {
     idtp.limit = (sizeof(struct idt_entry) * 256) - 1;
     idtp.base = (unsigned int)&idt;
     for(int i=0; i<256; i++) idt_set_gate(i, 0, 0, 0);
-    idt_set_gate(0, (unsigned int)isr0, 0x08, 0x8E);
-    idt_set_gate(1, (unsigned int)isr1, 0x08, 0x8E);
+    for(unsigned int i = 0; i < 32; i++)
+        idt_set_gate((unsigned char)i, exception_stub_table[i], 0x08, 0x8E);
     idt_set_gate(32, (unsigned int)irq0, 0x08, 0x8E);
     idt_set_gate(33, (unsigned int)irq1, 0x08, 0x8E);
     idt_set_gate(44, (unsigned int)irq12, 0x08, 0x8E);
+    idt_set_gate(128, (unsigned int)isr_syscall, 0x08, 0xEE);
     asm volatile("lidt %0" :: "m"(idtp));
 }
 void remap_pic(void) {

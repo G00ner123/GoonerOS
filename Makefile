@@ -14,7 +14,7 @@ QEMU      = qemu-system-i386
 QEMUFLAGS = -drive file=os.img,format=raw -rtc base=localtime
 
 # Alle C-Module des Kernels.
-C_SOURCES = kernel.c vga.c fs.c ata.c rtc.c idt.c heap.c keyboard.c mouse.c shell.c desktop.c scheduler.c
+C_SOURCES = kernel.c paging.c gdt.c user_process.c vga.c fs.c ata.c rtc.c idt.c heap.c keyboard.c mouse.c shell.c desktop.c scheduler.c
 C_OBJECTS = $(C_SOURCES:.c=.o)
 
 .PHONY: all run clean
@@ -33,6 +33,12 @@ isr.o: isr.asm
 interrupts.o: interrupts.asm
 	$(ASM) -f elf32 interrupts.asm -o interrupts.o
 
+user.o: user.asm
+	$(ASM) -f elf32 user.asm -o user.o
+
+usermode.o: usermode.asm
+	$(ASM) -f elf32 usermode.asm -o usermode.o
+
 # Pattern-Regel: jede beliebige xyz.c wird zu xyz.o. kernel.h/io.h als
 # Abhängigkeit.
 %.o: %.c kernel.h io.h
@@ -40,8 +46,8 @@ interrupts.o: interrupts.asm
 
 # Reihenfolge beim Linken: isr.o zuerst, weil dort _start
 # (der echte Einsprungpunkt bei 0x100000, .text.boot) drin is.
-kernel.elf: isr.o $(C_OBJECTS) interrupts.o linker.ld
-	$(LD) $(LDFLAGS) -o kernel.elf isr.o $(C_OBJECTS) interrupts.o
+kernel.elf: isr.o $(C_OBJECTS) interrupts.o user.o usermode.o linker.ld
+	$(LD) $(LDFLAGS) -o kernel.elf isr.o $(C_OBJECTS) interrupts.o user.o usermode.o
 
 kernel.bin: kernel.elf
 	objcopy -O binary kernel.elf kernel.bin

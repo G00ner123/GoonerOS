@@ -13,6 +13,7 @@
 
 /* ==================== Heap ==================== */
 #define HEAP_START 0x200000
+#define PAGING_IDENTITY_LIMIT 0x00400000u
 
 /* ==================== ATA-Ports ==================== */
 #define ATA_PRIMARY 0x1F0
@@ -71,7 +72,7 @@ extern struct fs_entry fs_table[FS_MAX_FILES];
 extern struct fs_superblock fs_sb;
 
 int fs_save(void);
-void fs_load(void);
+int fs_load(void);
 struct fs_entry* fs_find(const char* name);
 int fs_create(const char* name);
 int fs_mkdir(const char* name);
@@ -98,6 +99,21 @@ void print_time_date(void);
 /* ==================== Heap-Allokator ==================== */
 extern unsigned int heap_ptr;
 void* kmalloc(unsigned int size);
+void page_allocator_init(void);
+void* page_alloc(void);
+int page_free(void* page);
+unsigned int page_free_count(void);
+int paging_init(unsigned int framebuffer, unsigned int pitch, unsigned int height);
+int paging_is_active(void);
+unsigned int paging_directory_address(void);
+int paging_create_user_space(unsigned int slot, unsigned int code_page, unsigned int stack_page);
+int paging_activate_user_space(unsigned int slot);
+void paging_activate_kernel_space(void);
+int user_process_run(int pid, int test_fault);
+int user_syscall_dispatch(unsigned int* registers);
+void user_fault_dispatch(unsigned int error, unsigned int eip, unsigned int cs, unsigned int address);
+void gdt_install(void);
+void gdt_set_kernel_stack(unsigned int stack_top);
 
 /* ==================== VGA / Grafik ==================== */
 extern int text_x, text_y;
@@ -111,6 +127,8 @@ void vga_clear(void);
 void vga_clear_region(void);
 void vga_putc(char c);
 void vga_print(const char* s);
+void vga_capture_start(char* buffer, unsigned int capacity);
+int vga_capture_end(void);
 void vga_set_text_color(unsigned int color);
 void text_buffer_put(int row, int col, char c);
 void redraw_text_buffer(void);
@@ -118,6 +136,7 @@ void clear_pixels_only(void);
 void put_pixel(int x, int y, unsigned int color);
 unsigned int get_pixel(int x, int y);
 void draw_char(int x, int y, char c, unsigned int fg, unsigned int bg);
+void draw_console_char(int x, int y, char c, unsigned int fg, unsigned int bg);
 void draw_char_scaled(int x, int y, char c, int scale, unsigned int fg, unsigned int bg);
 void draw_rect(int x, int y, int w, int h, unsigned int color);
 void draw_triangle(int x0,int y0,int x1,int y1,int x2,int y2, unsigned int color);
@@ -143,6 +162,7 @@ int desktop_editor_active(void);
 void desktop_editor_key(char c, int special);
 void desktop_editor_update(void);
 int desktop_save_preferences(void);
+int desktop_boot_logo_enabled(void);
 void play_gooneros_animation(void);
 extern int mint_visible;
 
@@ -164,17 +184,23 @@ void keyboard_poll(void);
 void keyboard_load_layout(void);
 int keyboard_set_layout(int layout);
 int keyboard_get_layout(void);
+int keyboard_save_layout(void);
+static inline const char* ui_text(const char* english, const char* german) {
+    return keyboard_get_layout() == KEYBOARD_LAYOUT_EN ? english : german;
+}
+void desktop_language_changed(void);
 void draw_cursor_bar(int on);
 void redraw_input_line(void);
 
 /* ==================== Maus ==================== */
-void mouse_init(void);
+int mouse_init(void);
 void irq12_handler(void);
 int mouse_get_x(void);
 int mouse_get_y(void);
 int mouse_left_pressed(void);
 void mouse_refresh_cursor(void);
 void mouse_cursor_hide(void); // BUGFIX: vor jedem Redraw aufrufen, der Pixel unter dem Cursor überschreiben könnte
+void mouse_set_cursor_shape(int shape);
 int mouse_poll_event(int* x, int* y, int* left);
 
 /* ==================== Shell ==================== */
@@ -192,6 +218,10 @@ void clear_last_draw(void);
 void remember_draw(int x, int y, int w, int h);
 int get_ip(char* out);
 void reboot(void);
+void kernel_panic(const char* message);
+unsigned int kernel_exception_dispatch(unsigned int vector, unsigned int error,
+                                       unsigned int eip, unsigned int cs,
+                                       unsigned int address);
 void beep(void);
 
 /* ==================== Kooperativer Scheduler ==================== */

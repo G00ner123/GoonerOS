@@ -8,6 +8,10 @@ static unsigned int fb_bpp = 32;
 int text_x = 0;
 int text_y = 0;
 static unsigned int text_color = 0xFFFFFF;
+static char* capture_buffer;
+static unsigned int capture_capacity;
+static unsigned int capture_length;
+static int capture_overflow;
 
 // Terminal-Fensterbereich
 static int term_ox = 0, term_oy = 0;
@@ -155,6 +159,111 @@ static const unsigned char font8x16[256][16] = {
     [252] = {0x00,0x00,0x66,0x66,0x00,0x66,0x66,0x66,0x66,0x66,0x66,0x3E,0x00,0x00,0x00,0x00}, // ü
     ['\n'] = {0}
 };
+static const unsigned char console_font5x9[95][9] = {
+    ['!'-32] = {4,4,4,4,4,0,4},
+    ['"'-32] = {10,10,10,0,0,0,0},
+    ['#'-32] = {10,31,10,10,31,10,0},
+    ['$'-32] = {4,15,20,14,5,30,4},
+    ['%'-32] = {17,18,4,8,19,17,0},
+    ['&'-32] = {12,18,20,8,21,18,13},
+    ['\''-32] = {4,4,8,0,0,0,0},
+    ['('-32] = {2,4,8,8,8,4,2},
+    [')'-32] = {8,4,2,2,2,4,8},
+    ['*'-32] = {0,21,14,31,14,21,0},
+    ['+'-32] = {0,4,4,31,4,4,0},
+    [','-32] = {0,0,0,0,4,4,8},
+    ['-'-32] = {0,0,0,31,0,0,0},
+    ['.'-32] = {0,0,0,0,0,4,4},
+    ['/'-32] = {1,2,2,4,8,8,16},
+    ['0'-32] = {14,17,19,21,25,17,14},
+    ['1'-32] = {4,12,4,4,4,4,14},
+    ['2'-32] = {14,17,1,2,4,8,31},
+    ['3'-32] = {30,1,1,14,1,1,30},
+    ['4'-32] = {2,6,10,18,31,2,2},
+    ['5'-32] = {31,16,16,30,1,1,30},
+    ['6'-32] = {6,8,16,30,17,17,14},
+    ['7'-32] = {31,1,2,4,8,8,8},
+    ['8'-32] = {14,17,17,14,17,17,14},
+    ['9'-32] = {14,17,17,15,1,2,12},
+    [':'-32] = {0,4,4,0,4,4,0},
+    [';'-32] = {0,4,4,0,4,4,8},
+    ['<'-32] = {2,4,8,16,8,4,2},
+    ['='-32] = {0,31,0,31,0,0,0},
+    ['>'-32] = {8,4,2,1,2,4,8},
+    ['?'-32] = {14,17,1,2,4,0,4},
+    ['@'-32] = {14,17,23,21,23,16,14},
+    ['A'-32] = {14,17,17,31,17,17,17},
+    ['B'-32] = {30,17,17,30,17,17,30},
+    ['C'-32] = {14,17,16,16,16,17,14},
+    ['D'-32] = {30,17,17,17,17,17,30},
+    ['E'-32] = {31,16,16,30,16,16,31},
+    ['F'-32] = {31,16,16,30,16,16,16},
+    ['G'-32] = {14,17,16,23,17,17,15},
+    ['H'-32] = {17,17,17,31,17,17,17},
+    ['I'-32] = {14,4,4,4,4,4,14},
+    ['J'-32] = {7,2,2,2,2,18,12},
+    ['K'-32] = {17,18,20,24,20,18,17},
+    ['L'-32] = {16,16,16,16,16,16,31},
+    ['M'-32] = {17,27,21,21,17,17,17},
+    ['N'-32] = {17,25,21,19,17,17,17},
+    ['O'-32] = {14,17,17,17,17,17,14},
+    ['P'-32] = {30,17,17,30,16,16,16},
+    ['Q'-32] = {14,17,17,17,21,18,13},
+    ['R'-32] = {30,17,17,30,20,18,17},
+    ['S'-32] = {15,16,16,14,1,1,30},
+    ['T'-32] = {31,4,4,4,4,4,4},
+    ['U'-32] = {17,17,17,17,17,17,14},
+    ['V'-32] = {17,17,17,17,17,10,4},
+    ['W'-32] = {17,17,17,21,21,21,10},
+    ['X'-32] = {17,17,10,4,10,17,17},
+    ['Y'-32] = {17,17,10,4,4,4,4},
+    ['Z'-32] = {31,1,2,4,8,16,31},
+    ['['-32] = {14,8,8,8,8,8,14},
+    ['\\'-32] = {16,8,8,4,2,2,1},
+    [']'-32] = {14,2,2,2,2,2,14},
+    ['^'-32] = {4,10,17,0,0,0,0},
+    ['_'-32] = {0,0,0,0,0,0,31},
+    ['`'-32] = {8,4,0,0,0,0,0},
+    ['a'-32] = {0,0,14,1,15,17,15},
+    ['b'-32] = {16,16,30,17,17,17,30},
+    ['c'-32] = {0,0,14,17,16,17,14},
+    ['d'-32] = {1,1,15,17,17,17,15},
+    ['e'-32] = {0,0,14,17,31,16,14},
+    ['f'-32] = {6,8,8,30,8,8,8},
+    ['g'-32] = {0,0,15,17,17,15,1,17,14},
+    ['h'-32] = {16,16,30,17,17,17,17},
+    ['i'-32] = {4,0,12,4,4,4,14},
+    ['j'-32] = {2,0,6,2,2,2,2,18,12},
+    ['k'-32] = {16,16,18,20,24,20,18},
+    ['l'-32] = {12,4,4,4,4,4,14},
+    ['m'-32] = {0,0,26,21,21,21,21},
+    ['n'-32] = {0,0,30,17,17,17,17},
+    ['o'-32] = {0,0,14,17,17,17,14},
+    ['p'-32] = {0,0,30,17,17,30,16,16,16},
+    ['q'-32] = {0,0,15,17,17,15,1,1,1},
+    ['r'-32] = {0,0,22,24,16,16,16},
+    ['s'-32] = {0,0,15,16,14,1,30},
+    ['t'-32] = {8,8,30,8,8,9,6},
+    ['u'-32] = {0,0,17,17,17,19,13},
+    ['v'-32] = {0,0,17,17,17,10,4},
+    ['w'-32] = {0,0,17,17,21,21,10},
+    ['x'-32] = {0,0,17,10,4,10,17},
+    ['y'-32] = {0,0,17,17,17,15,1,17,14},
+    ['z'-32] = {0,0,31,2,4,8,31},
+    ['{'-32] = {2,4,4,8,4,4,2},
+    ['|'-32] = {4,4,4,4,4,4,4},
+    ['}'-32] = {8,4,4,2,4,4,8},
+    ['~'-32] = {0,0,9,22,0,0,0}
+};
+
+static int console_font_pixel(unsigned char c, int x, int y) {
+    if(c < 32 || c > 126) return -1;
+    int column = x - 1;
+    if(column < 0 || column >= 5) return 0;
+    if(y < 3 || y >= 12) return 0;
+    return (console_font5x9[c - 32][y - 3] & (1 << (4 - column))) != 0;
+}
+
 void put_pixel(int x, int y, unsigned int color) {
     if((unsigned)x >= VESA_WIDTH || (unsigned)y >= VESA_HEIGHT) return;
     unsigned char* p = (unsigned char*)framebuffer + y * fb_pitch + x * (fb_bpp / 8);
@@ -168,13 +277,25 @@ unsigned int get_pixel(int x, int y) {
     unsigned char* p = (unsigned char*)framebuffer + y * fb_pitch + x * (fb_bpp / 8);
     return (p[2] << 16) | (p[1] << 8) | p[0];
 }
-void draw_char(int x, int y, char c, unsigned int fg, unsigned int bg) {
-    const unsigned char* glyph = font8x16[(unsigned char)c];
+static void draw_legacy_char(int x, int y, char c, unsigned int fg, unsigned int bg) {
     int i, j;
     for(j = 0; j < 16; j++) {
-        unsigned char row = glyph[j];
         for(i = 0; i < 8; i++) {
-            put_pixel(x+i, y+j, (row & (0x80 >> i))? fg : bg);
+            put_pixel(x+i, y+j, (font8x16[(unsigned char)c][j] & (0x80 >> i)) ? fg : bg);
+        }
+    }
+}
+void draw_char(int x, int y, char c, unsigned int fg, unsigned int bg) {
+    draw_legacy_char(x, y, c, fg, bg);
+}
+void draw_console_char(int x, int y, char c, unsigned int fg, unsigned int bg) {
+    int i, j;
+    for(j = 0; j < 16; j++) {
+        for(i = 0; i < 8; i++) {
+            int pixel = console_font_pixel((unsigned char)c, i, j);
+            if(pixel < 0)
+                pixel = (font8x16[(unsigned char)c][j] & (0x80 >> i)) != 0;
+            put_pixel(x+i, y+j, pixel ? fg : bg);
         }
     }
 }
@@ -223,16 +344,37 @@ void vga_clear_region(void) {
         for(int c = 0; c < TEXT_COLS; c++)
             text_buffer[r][c] = 0;
 }
+void vga_capture_start(char* buffer, unsigned int capacity) {
+    capture_buffer = buffer;
+    capture_capacity = capacity;
+    capture_length = 0;
+    capture_overflow = 0;
+}
+int vga_capture_end(void) {
+    int length = (int)capture_length;
+    if(capture_buffer && capture_capacity) capture_buffer[capture_length < capture_capacity ? capture_length : capture_capacity-1] = 0;
+    capture_buffer = 0;
+    capture_capacity = 0;
+    capture_length = 0;
+    return capture_overflow ? -1 : length;
+}
 void vga_putc(char c) {
+    if(capture_buffer) {
+        if(capture_length + 1 < capture_capacity)
+            capture_buffer[capture_length++] = c;
+        else
+            capture_overflow = 1;
+        return;
+    }
     if(c == '\n') { text_x = term_ox; text_y += 16; }
     else if(c == '\b') {
         if(text_x > term_ox) {
             text_x -= 8;
-            draw_char(text_x, text_y, ' ', 0xFFFFFF, 0);
+            draw_console_char(text_x, text_y, ' ', 0xFFFFFF, 0);
             text_buffer_put((text_y-term_oy)/16, (text_x-term_ox)/8, 0);
         }
     } else {
-        draw_char(text_x, text_y, c, text_color, 0x000);
+        draw_console_char(text_x, text_y, c, text_color, 0x000);
         text_buffer_put((text_y-term_oy)/16, (text_x-term_ox)/8, c);
         text_x += 8;
     }
@@ -246,26 +388,46 @@ void redraw_text_buffer(void) {
     if(rows > TEXT_ROWS) rows = TEXT_ROWS;
     for(int r = 0; r < rows; r++)
         for(int c = 0; c < cols; c++)
-            if(text_buffer[r][c]) draw_char(term_ox+c*8, term_oy+r*16, text_buffer[r][c], 0xFFFFFF, 0x000000);
+            if(text_buffer[r][c]) draw_console_char(term_ox+c*8, term_oy+r*16, text_buffer[r][c], 0xFFFFFF, 0x000000);
 }
 void vga_print(const char* s) { while(*s) vga_putc(*s++); }
 void draw_rect(int x, int y, int w, int h, unsigned int color) {
     if(w <= 0 || h <= 0) return;
-    if(x < 0) { w += x; x = 0; }
-    if(y < 0) { h += y; y = 0; }
-    if(x + w > VESA_WIDTH) w = VESA_WIDTH - x;
-    if(y + h > VESA_HEIGHT) h = VESA_HEIGHT - y;
+    if(x < 0) {
+        if(x <= -w) return;
+        w += x;
+        x = 0;
+    }
+    if(y < 0) {
+        if(y <= -h) return;
+        h += y;
+        y = 0;
+    }
+    if(x >= VESA_WIDTH || y >= VESA_HEIGHT) return;
+    if(w > VESA_WIDTH - x) w = VESA_WIDTH - x;
+    if(h > VESA_HEIGHT - y) h = VESA_HEIGHT - y;
     if(w <= 0 || h <= 0) return;
-    for(int j = 0; j < h; j++)
-        for(int i = 0; i < w; i++)
-            put_pixel(x + i, y + j, color);
+    unsigned char red = (unsigned char)(color >> 16);
+    unsigned char green = (unsigned char)(color >> 8);
+    unsigned char blue = (unsigned char)color;
+    unsigned int bytes_per_pixel = fb_bpp / 8;
+    for(int j = 0; j < h; j++) {
+        volatile unsigned char* pixel = framebuffer + (y+j)*fb_pitch + x*bytes_per_pixel;
+        for(int i = 0; i < w; i++) {
+            pixel[0] = blue;
+            pixel[1] = green;
+            pixel[2] = red;
+            if(fb_bpp == 32) pixel[3] = 0;
+            pixel += bytes_per_pixel;
+        }
+    }
 }
 void draw_char_scaled(int x, int y, char c, int scale, unsigned int fg, unsigned int bg) {
-    const unsigned char* glyph = font8x16[(unsigned char)c];
+    if(scale < 1) return;
     for(int j = 0; j < 16; j++) {
-        unsigned char row = glyph[j];
         for(int i = 0; i < 8; i++) {
-            draw_rect(x + i*scale, y + j*scale, scale, scale, (row & (0x80 >> i)) ? fg : bg);
+            int pixel = (font8x16[(unsigned char)c][j] & (0x80 >> i)) != 0;
+            draw_rect(x + i*scale, y + j*scale, scale, scale, pixel ? fg : bg);
         }
     }
 }
@@ -292,8 +454,20 @@ void draw_mouse(int x, int y, unsigned int color) {
     draw_triangle(x, y, x, y+11, x+6, y+8, color);
 }
 void draw_circle_filled(int cx, int cy, int r, unsigned int color) {
-    for(int y = -r; y <= r; y++) {
-        for(int x = -r; x <= r; x++) {
+    if(r <= 0) return;
+    if(r > VESA_WIDTH) r = VESA_WIDTH;
+    if(cx < -r || cx >= VESA_WIDTH + r || cy < -r || cy >= VESA_HEIGHT + r)
+        return;
+    int min_y = -r;
+    int max_y = r;
+    if(min_y < -cy) min_y = -cy;
+    if(max_y > VESA_HEIGHT - 1 - cy) max_y = VESA_HEIGHT - 1 - cy;
+    for(int y = min_y; y <= max_y; y++) {
+        int min_x = -r;
+        int max_x = r;
+        if(min_x < -cx) min_x = -cx;
+        if(max_x > VESA_WIDTH - 1 - cx) max_x = VESA_WIDTH - 1 - cx;
+        for(int x = min_x; x <= max_x; x++) {
             if(x*x + y*y <= r*r) put_pixel(cx+x, cy+y, color);
         }
     }

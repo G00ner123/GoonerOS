@@ -5,6 +5,155 @@ struct fs_entry fs_table[FS_MAX_FILES];
 struct fs_superblock fs_sb;
 static unsigned char fs_iobuf[FS_MAX_FILE_BYTES];
 static struct fs_entry fs_legacy_table[FS_MAX_FILES];
+static unsigned char fs_write_verify[FS_MAX_FILE_BYTES] __attribute__((aligned(4)));
+
+#define FS_JOURNAL_LBA 2035u
+#define FS_JOURNAL_PAYLOAD_LBA (FS_JOURNAL_LBA + 2u)
+#define FS_JOURNAL_PREPARED 0x4A4E4C31u
+#define FS_JOURNAL_COMMITTED 0x434F4D31u
+#define FS_JOURNAL_VERSION 1u
+#define FS_JOURNAL_PAYLOAD_BYTES (6u * 512u)
+
+struct fs_journal_record {
+    unsigned int magic;
+    unsigned int version;
+    unsigned int generation;
+    unsigned int checksum;
+    unsigned char reserved[496];
+} __attribute__((packed));
+
+static unsigned char fs_journal_payload[FS_JOURNAL_PAYLOAD_BYTES]
+    __attribute__((aligned(4)));
+static unsigned char fs_journal_verify[FS_JOURNAL_PAYLOAD_BYTES]
+    __attribute__((aligned(4)));
+static unsigned char fs_journal_sector[512] __attribute__((aligned(4)));
+static int fs_journal_pending;
+
+static unsigned int fs_journal_checksum(const unsigned char* data,
+                                        unsigned int length) {
+    unsigned int checksum = 2166136261u;
+    for(unsigned int i = 0; i < length; i++)
+        checksum = (checksum ^ data[i]) * 16777619u;
+    return checksum;
+}
+
+static int fs_journal_write_metadata(unsigned int offset) {
+    if(!ata_rw_sectors(FS_TABLE_LBA, FS_TABLE_SECTORS,
+                       (unsigned short*)(fs_journal_payload + offset + 512u), 1) ||
+       !ata_rw_sectors(FS_SUPERBLOCK_LBA, 1,
+                       (unsigned short*)(fs_journal_payload + offset), 1))
+        return 0;
+    if(!ata_rw_sectors(FS_SUPERBLOCK_LBA, 1,
+                       (unsigned short*)fs_journal_verify, 0) ||
+       !ata_rw_sectors(FS_TABLE_LBA, FS_TABLE_SECTORS,
+                       (unsigned short*)(fs_journal_verify + 512u), 0))
+        return 0;
+    for(unsigned int i = 0; i < 1536u; i++)
+        if(fs_journal_verify[i] != fs_journal_payload[offset + i]) return 0;
+    return 1;
+}
+
+static int fs_journal_recover(void) {
+    struct fs_journal_record record;
+    struct fs_journal_record marker;
+    if(!ata_rw_sectors(FS_JOURNAL_LBA, 1,
+                       (unsigned short*)fs_journal_sector, 0))
+        return 0;
+    for(unsigned int i = 0; i < sizeof(record); i++)
+        ((unsigned char*)&record)[i] = fs_journal_sector[i];
+    if(record.magic != FS_JOURNAL_PREPARED ||
+       record.version != FS_JOURNAL_VERSION)
+        return 1;
+    if(!ata_rw_sectors(FS_JOURNAL_PAYLOAD_LBA, 6,
+                       (unsigned short*)fs_journal_payload, 0) ||
+       fs_journal_checksum(fs_journal_payload, FS_JOURNAL_PAYLOAD_BYTES) != record.checksum)
+        return 0;
+    if(!ata_rw_sectors(FS_JOURNAL_LBA + 1u, 1,
+                       (unsigned short*)fs_journal_sector, 0))
+        return 0;
+    for(unsigned int i = 0; i < sizeof(marker); i++)
+        ((unsigned char*)&marker)[i] = fs_journal_sector[i];
+    unsigned int offset = marker.magic == FS_JOURNAL_COMMITTED &&
+                          marker.version == record.version &&
+                          marker.generation == record.generation &&
+                          marker.checksum == record.checksum ? 1536u : 0u;
+    if(!fs_journal_write_metadata(offset)) return 0;
+    fs_journal_pending = 0;
+    return 1;
+}
+
+static int fs_journal_save(void) {
+    struct fs_journal_record previous;
+    struct fs_journal_record record;
+    struct fs_journal_record marker;
+    if(fs_journal_pending && !fs_journal_recover()) return 0;
+    if(!ata_rw_sectors(FS_JOURNAL_LBA, 1,
+                       (unsigned short*)fs_journal_sector, 0))
+        return 0;
+    for(unsigned int i = 0; i < sizeof(previous); i++)
+        ((unsigned char*)&previous)[i] = fs_journal_sector[i];
+    unsigned int generation = previous.magic == FS_JOURNAL_PREPARED
+        ? previous.generation + 1u : 1u;
+    if(!generation) generation = 1;
+
+    if(!ata_rw_sectors(FS_SUPERBLOCK_LBA, 1,
+                       (unsigned short*)fs_journal_payload, 0) ||
+       !ata_rw_sectors(FS_TABLE_LBA, FS_TABLE_SECTORS,
+                       (unsigned short*)(fs_journal_payload + 512u), 0))
+        return 0;
+    for(unsigned int i = 0; i < sizeof(fs_sb); i++)
+        fs_journal_payload[1536u + i] = ((unsigned char*)&fs_sb)[i];
+    for(unsigned int i = 0; i < sizeof(fs_table); i++)
+        fs_journal_payload[2048u + i] = ((unsigned char*)fs_table)[i];
+
+    for(unsigned int i = 0; i < 512u; i++) fs_journal_sector[i] = 0;
+    if(!ata_rw_sectors(FS_JOURNAL_LBA, 1,
+                       (unsigned short*)fs_journal_sector, 1))
+        return 0;
+    if(!ata_rw_sectors(FS_JOURNAL_LBA + 1u, 1,
+                       (unsigned short*)fs_journal_sector, 1))
+        return 0;
+    if(!ata_rw_sectors(FS_JOURNAL_PAYLOAD_LBA, 6,
+                       (unsigned short*)fs_journal_payload, 1) ||
+       !ata_rw_sectors(FS_JOURNAL_PAYLOAD_LBA, 6,
+                       (unsigned short*)fs_journal_verify, 0))
+        return 0;
+    for(unsigned int i = 0; i < FS_JOURNAL_PAYLOAD_BYTES; i++)
+        if(fs_journal_verify[i] != fs_journal_payload[i]) return 0;
+
+    record.magic = FS_JOURNAL_PREPARED;
+    record.version = FS_JOURNAL_VERSION;
+    record.generation = generation;
+    record.checksum = fs_journal_checksum(fs_journal_payload,
+                                           FS_JOURNAL_PAYLOAD_BYTES);
+    for(unsigned int i = 0; i < sizeof(record); i++)
+        fs_journal_sector[i] = ((unsigned char*)&record)[i];
+    for(unsigned int i = sizeof(record); i < 512u; i++)
+        fs_journal_sector[i] = 0;
+    if(!ata_rw_sectors(FS_JOURNAL_LBA, 1,
+                       (unsigned short*)fs_journal_sector, 1))
+        return 0;
+    fs_journal_pending = 1;
+    if(!fs_journal_write_metadata(1536u)) return 0;
+
+    marker.magic = FS_JOURNAL_COMMITTED;
+    marker.version = record.version;
+    marker.generation = record.generation;
+    marker.checksum = record.checksum;
+    for(unsigned int i = 0; i < sizeof(marker); i++)
+        fs_journal_sector[i] = ((unsigned char*)&marker)[i];
+    for(unsigned int i = sizeof(marker); i < 512u; i++)
+        fs_journal_sector[i] = 0;
+    if(!ata_rw_sectors(FS_JOURNAL_LBA + 1u, 1,
+                       (unsigned short*)fs_journal_sector, 1) ||
+       !ata_rw_sectors(FS_JOURNAL_LBA + 1u, 1,
+                       (unsigned short*)fs_journal_verify, 0))
+        return 0;
+    for(unsigned int i = 0; i < sizeof(marker); i++)
+        if(fs_journal_verify[i] != ((unsigned char*)&marker)[i]) return 0;
+    fs_journal_pending = 0;
+    return 1;
+}
 
 static int fs_name_valid(const char* name) {
     if(!name || !name[0] || strlen(name) >= FS_NAME_LEN) return 0;
@@ -69,6 +218,7 @@ static int fs_entry_valid(const struct fs_entry* e) {
     if(!e->used || e->name[FS_NAME_LEN - 1] != 0 ||
        !fs_name_valid(e->name) ||
        e->start_lba < FS_DATA_START_LBA ||
+       (e->start_lba - FS_DATA_START_LBA) % FS_MAX_FILE_SECTORS != 0 ||
        e->start_lba > FS_DISK_END_LBA - FS_MAX_FILE_SECTORS)
         return 0;
     if(fs_is_directory(e)) return e->size == 0;
@@ -231,24 +381,25 @@ int fs_save(void) {
         if(fs_entry_valid(&fs_table[i]) &&
            fs_table[i].start_lba + FS_MAX_FILE_SECTORS > fs_sb.next_free_lba)
             fs_sb.next_free_lba = fs_table[i].start_lba + FS_MAX_FILE_SECTORS;
-    if(!ata_rw_sectors(FS_TABLE_LBA, FS_TABLE_SECTORS, (unsigned short*)fs_table, 1))
-        return 0;
-    return ata_rw_sectors(FS_SUPERBLOCK_LBA, 1, (unsigned short*)&fs_sb, 1);
+    return fs_journal_save();
 }
-void fs_load(void) {
+int fs_load(void) {
+    if(!fs_journal_recover()) {
+        fs_reset();
+        return 0;
+    }
     int ok = ata_rw_sectors(FS_SUPERBLOCK_LBA, 1, (unsigned short*)&fs_sb, 0);
     ok = ok && ata_rw_sectors(FS_TABLE_LBA, FS_TABLE_SECTORS, (unsigned short*)fs_table, 0);
     if(!ok) {
         // Platte antwortet nicht (z.B. kein/falsch konfiguriertes Laufwerk in QEMU) ->
         // ohne persistentes Dateisystem weiterstarten statt den Kernel haengen zu lassen
         fs_reset();
-        return;
+        return 0;
     }
     if(fs_sb.magic != FS_MAGIC) {
-        if(fs_migrate_legacy()) return;
+        if(fs_migrate_legacy()) return 1;
         fs_reset();
-        fs_save();
-        return;
+        return fs_save();
     }
     for(int i = 0; i < FS_MAX_FILES; i++)
         if(fs_table[i].used && !fs_entry_valid(&fs_table[i]))
@@ -283,7 +434,7 @@ void fs_load(void) {
     fs_sb.file_count = 0;
     for(int i = 0; i < FS_MAX_FILES; i++)
         if(fs_entry_valid(&fs_table[i])) fs_sb.file_count++;
-    fs_save();
+    return fs_save();
 }
 
 struct fs_entry* fs_find(const char* name) {
@@ -455,16 +606,29 @@ int fs_write(const char* name, const char* data, int len) {
         created = 1;
     }
     if(!e || fs_is_directory(e)) return 0;
-    for(int i = 0; i < FS_MAX_FILE_BYTES; i++) fs_iobuf[i] = 0;
-    for(int i = 0; i < len; i++) fs_iobuf[i] = data[i];
-    if(!ata_rw_sectors(e->start_lba, FS_MAX_FILE_SECTORS, (unsigned short*)fs_iobuf, 1)) {
+    struct fs_entry previous = *e;
+    unsigned int new_block = fs_allocate_block();
+    if(!new_block) {
         if(created) fs_delete(name);
         return 0;
     }
-    unsigned int previous_size = e->size;
+    for(int i = 0; i < FS_MAX_FILE_BYTES; i++) fs_iobuf[i] = 0;
+    for(int i = 0; i < len; i++) fs_iobuf[i] = data[i];
+    if(!ata_rw_sectors(new_block, FS_MAX_FILE_SECTORS, (unsigned short*)fs_iobuf, 1) ||
+       !ata_rw_sectors(new_block, FS_MAX_FILE_SECTORS, (unsigned short*)fs_write_verify, 0)) {
+        if(created) fs_delete(name);
+        return 0;
+    }
+    for(int i = 0; i < FS_MAX_FILE_BYTES; i++) {
+        if(fs_iobuf[i] != fs_write_verify[i]) {
+            if(created) fs_delete(name);
+            return 0;
+        }
+    }
+    e->start_lba = new_block;
     e->size = len;
     if(!fs_save()) {
-        e->size = previous_size;
+        *e = previous;
         fs_save();
         if(created) fs_delete(name);
         return 0;

@@ -14,6 +14,34 @@ static char cmd_history[8][64];
 static int cmd_history_count = 0;
 static int last_draw_active = 0, last_draw_x, last_draw_y, last_draw_w, last_draw_h;
 static char fs_cwd[FS_NAME_LEN];
+static const char* shell_stdin_data;
+static int shell_status;
+
+#define SHELL_PIPE_STAGES 8
+#define SHELL_CAPTURE_SIZE (FS_MAX_FILE_BYTES + 1)
+
+static char shell_pipe_buffer[SHELL_CAPTURE_SIZE];
+
+static void print_ui(const char* english, const char* german) {
+    vga_print(ui_text(english, german));
+}
+
+static void shell_printf(const char* format) {
+    for(int i = 0; format[i]; i++) {
+        if(format[i] == '\\' && format[i+1]) {
+            i++;
+            if(format[i] == 'n') vga_putc('\n');
+            else if(format[i] == 't') vga_putc('\t');
+            else if(format[i] == '\\') vga_putc('\\');
+            else { vga_putc('\\'); vga_putc(format[i]); }
+        } else if(format[i] == '%' && format[i+1] == '%') {
+            vga_putc('%');
+            i++;
+        } else {
+            vga_putc(format[i]);
+        }
+    }
+}
 
 static int resolve_fs_path(const char* input, char out[FS_NAME_LEN]) {
     int out_len = 0, pos = 0;
@@ -66,18 +94,19 @@ static void list_directory(const char* path, int long_format, int show_hidden) {
         return;
     }
     if(path[0] && !fs_is_directory(target)) {
-        vga_print("ls: directory not found\n");
+        print_ui("ls: directory not found\n", "ls: Verzeichnis nicht gefunden\n");
         return;
     }
     int any = 0;
-    if(long_format) vga_print("TYPE  SIZE      NAME\n");
+    if(long_format) print_ui("TYPE  SIZE      NAME\n", "TYP   GROESSE   NAME\n");
     for(int i = 0; i < FS_MAX_FILES; i++) {
         struct fs_entry* entry = &fs_table[i];
         if(!entry->used || !fs_is_direct_child(entry, path)) continue;
         const char* basename = fs_basename(entry->name);
         if(!show_hidden && basename[0] == '.') continue;
         if(long_format) {
-            vga_print(fs_is_directory(entry) ? "DIR   " : "FILE  ");
+            vga_print(fs_is_directory(entry)
+                ? ui_text("DIR   ", "ORDNER") : ui_text("FILE  ", "DATEI "));
             print_int((int)entry->size); vga_print(" B     ");
         }
         vga_print(basename);
@@ -85,7 +114,7 @@ static void list_directory(const char* path, int long_format, int show_hidden) {
         vga_putc('\n');
         any = 1;
     }
-    if(!any) vga_print("(leer)\n");
+    if(!any) print_ui("(empty)\n", "(leer)\n");
 }
 
 static void print_working_directory(void) {
@@ -101,6 +130,7 @@ static void shell_prompt(void) {
 }
 
 static int make_directories(const char* path) {
+    if(!path[0]) return 1;
     char prefix[FS_NAME_LEN];
     int len = strlen(path);
     for(int i = 0; i <= len; i++) {
@@ -147,6 +177,16 @@ static int read_file_from_cwd(const char* name, char* out, int capacity) {
     char path[FS_NAME_LEN];
     if(!resolve_fs_path(name, path) || !path[0]) return -1;
     return fs_read(path, out, capacity);
+}
+
+static int read_shell_input(const char* name, char* out, int capacity) {
+    if(name && name[0]) return read_file_from_cwd(name, out, capacity);
+    if(!shell_stdin_data || capacity <= 0) return -1;
+    int len = strlen(shell_stdin_data);
+    if(len >= capacity) len = capacity - 1;
+    for(int i = 0; i < len; i++) out[i] = shell_stdin_data[i];
+    out[len] = 0;
+    return len;
 }
 
 static void goonfetch_prefix(const char* logo) {
@@ -208,25 +248,31 @@ static void goonfetch(void) {
 
     goonfetch_prefix(logo[0]); vga_print("root@GoonerOS\n");
     goonfetch_prefix(logo[1]); vga_print("--------------\n");
-    goonfetch_prefix(logo[2]); vga_print("OS: GoonerOS v0.10\n");
-    goonfetch_prefix(logo[3]); vga_print("Kernel: i686 / 32-bit\n");
-    goonfetch_prefix(logo[4]); vga_print("Shell: GoonerOS shell\n");
-    goonfetch_prefix(logo[5]); vga_print(desktop_active ? "Session: desktop\n" : "Session: console\n");
-    goonfetch_prefix(logo[6]); vga_print("Display: ");
+    goonfetch_prefix(logo[2]); print_ui("OS: GoonerOS v0.10\n", "Betriebssystem: GoonerOS v0.10\n");
+    goonfetch_prefix(logo[3]); print_ui("Kernel: i686 / 32-bit\n", "Kernel: i686 / 32-Bit\n");
+    goonfetch_prefix(logo[4]); print_ui("Shell: GoonerOS shell\n", "Shell: GoonerOS-Shell\n");
+    goonfetch_prefix(logo[5]); print_ui(desktop_active ? "Session: desktop\n" : "Session: console\n",
+                                        desktop_active ? "Sitzung: Desktop\n" : "Sitzung: Konsole\n");
+    goonfetch_prefix(logo[6]); print_ui("Display: ", "Anzeige: ");
     print_int(VESA_WIDTH); vga_putc('x'); print_int(VESA_HEIGHT); vga_putc('x');
     print_int((int)vga_get_bpp()); vga_print("\n");
-    goonfetch_prefix(logo[7]); vga_print("Keys: ");
+    goonfetch_prefix(logo[7]); print_ui("Keys: ", "Tastatur: ");
     vga_print(keyboard_get_layout() == KEYBOARD_LAYOUT_EN ? "en / QWERTY\n" : "de / QWERTZ\n");
-    goonfetch_prefix(logo[8]); vga_print("Uptime: "); print_int((int)(ticks / 1000)); vga_print(" seconds\n");
+    goonfetch_prefix(logo[8]); print_ui("Uptime: ", "Laufzeit: ");
+    print_int((int)(ticks / 1000)); print_ui(" seconds\n", " Sekunden\n");
     goonfetch_prefix(logo[9]); vga_print("RTC: 20"); goonfetch_two_digits(y); vga_putc('-');
     goonfetch_two_digits(mo); vga_putc('-'); goonfetch_two_digits(d); vga_putc(' ');
     goonfetch_two_digits(h); vga_putc(':'); goonfetch_two_digits(m); vga_putc(':');
     goonfetch_two_digits(s); vga_putc('\n');
-    goonfetch_prefix(logo[10]); vga_print("FS entries: "); print_int((int)file_count); vga_putc('/');
-    print_int(FS_MAX_FILES); vga_print("  data: "); print_int((int)used_bytes); vga_print(" B\n");
-    goonfetch_prefix(logo[11]); vga_print("Heap: ");
-    print_int((int)(heap_ptr-HEAP_START)); vga_print(" B  Jobs: "); print_int(scheduler_task_count());
-    vga_putc('/'); print_int(SCHEDULER_MAX_TASKS); vga_print(" cooperative\n");
+    goonfetch_prefix(logo[10]); print_ui("FS entries: ", "Dateisystemeintraege: ");
+    print_int((int)file_count); vga_putc('/');
+    print_int(FS_MAX_FILES); print_ui("  data: ", "  Daten: ");
+    print_int((int)used_bytes); vga_print(" B\n");
+    goonfetch_prefix(logo[11]); print_ui("Heap: ", "Heap: ");
+    print_int((int)(heap_ptr-HEAP_START)); vga_print(" B  ");
+    print_ui("Jobs: ", "Aufgaben: "); print_int(scheduler_task_count());
+    vga_putc('/'); print_int(SCHEDULER_MAX_TASKS);
+    print_ui(" cooperative\n", " kooperativ\n");
     vga_set_text_color(0xFFFFFF);
     vga_putc('\n');
 }
@@ -234,9 +280,25 @@ static void goonfetch(void) {
 void print_int(int n) {
     char buf[16]; int i = 0;
     if(n == 0) { vga_putc('0'); return; }
-    if(n < 0) { vga_putc('-'); n = -n; }
-    while(n > 0) { buf[i++] = '0' + n % 10; n /= 10; }
+    unsigned int value;
+    if(n < 0) {
+        vga_putc('-');
+        value = 0u - (unsigned int)n;
+    } else value = (unsigned int)n;
+    while(value > 0) { buf[i++] = '0' + value % 10; value /= 10; }
     while(i--) vga_putc(buf[i]);
+}
+
+static int calc_overflow(int a, int b, char op) {
+    const int max = 2147483647;
+    const int min = (-2147483647 - 1);
+    if(op == '+') return (b > 0 && a > max - b) || (b < 0 && a < min - b);
+    if(op == '-') return (b < 0 && a > max + b) || (b > 0 && a < min + b);
+    if(op == '*') {
+        if(a > 0) return b > 0 ? a > max / b : b < min / a;
+        if(a < 0) return b > 0 ? a < min / b : b < 0 && a < max / b;
+    }
+    return op == '/' && a == min && b == -1;
 }
 
 void reboot(void) {
@@ -268,9 +330,20 @@ int parse_int(char** p) {
     while(**p == ' ') (*p)++;
     int neg = 0;
     if(**p == '-') { neg = 1; (*p)++; }
-    int n = 0;
-    while(**p >= '0' && **p <= '9') { n = n*10 + (**p - '0'); (*p)++; }
-    return neg ? -n : n;
+    unsigned int limit = neg ? 0x80000000u : 0x7FFFFFFFu;
+    unsigned int value = 0;
+    while(**p >= '0' && **p <= '9') {
+        unsigned int digit = (unsigned int)(**p - '0');
+        if(value > (limit - digit) / 10) value = limit;
+        else if(value < limit) value = value * 10 + digit;
+        (*p)++;
+    }
+    if(neg) {
+        if(value >= 0x80000000u) return (-2147483647 - 1);
+        return -(int)value;
+    }
+    if(value >= 0x7FFFFFFFu) return 2147483647;
+    return (int)value;
 }
 
 void clear_last_draw(void) {
@@ -284,53 +357,48 @@ int get_ip(char* out) {
     (void)out;
     return 0; // (noch ?) Kein Netzwerkstack da aktuell nicht verfügbar
 }
-void handle_command(void) {
-    input_buf[input_idx] = 0;
-    if(input_idx > 0) {
-        for(int i = 0; i < 63 && input_buf[i]; i++) cmd_history[cmd_history_count % 8][i] = input_buf[i];
-        cmd_history[cmd_history_count % 8][input_idx < 63 ? input_idx : 63] = 0;
-        cmd_history_count++;
-    }
-    if(strcmp(input_buf, "help") == 0) {
-        vga_print("== System & Info ==               |           == File System ==\n");
-        vga_print("help; info; version; goonfetch;   |  ls [-la]; cd; pwd; tree; find;\n");
-        vga_print("neofetch; uname; hostname;        |  mkdir [-p]; rmdir; rm [-r]; mv;\n");
-        vga_print("                                  |       touch; cat; write; append;\n");
-        vga_print("whoami; uptime; arch;             |           chmod; type xyz;\n");
-        vga_print("lscpu; meminfo; free;             |       cat [-n]; stat; find;\n");
-        vga_print("df; ps; top;                      |            sum; cksum; wc;\n");
-        vga_print("env; id; groups;                  |            head; tail; pwd;\n");
-        vga_print("who; battery; sensors;            |           search; wipe; tree;\n");
-        vga_print("dmesg; vmstat; lsblk;             |              mv; cp; du\n");
-        vga_print("mount; nproc; systemctl;          |        cp; du; df; fsck; stat;\n");
-        vga_print("journalctl; crontab; history;     |                          \n");
-        vga_print("__________________________________|_________________________________\n");
-        vga_print("== Text & Processing ==           |            == Math & Random ==\n");
-        vga_print("echo; grep; sort;                 |               calc; seq;\n");
-        vga_print("rev; tr; which;                   |                  fib;\n");
-        vga_print("printf x; diff; less;             |             rand; genpass;\n");
-        vga_print("more; nano; man;                  |               factorial;\n");
-        vga_print("fortune; banner; colors;          |             factor; prime\n");
-        vga_print("rot13; base64; hex;               |                          \n");
-        vga_print("dec; ascii; chr                   |                          \n");
-        vga_print("__________________________________|_________________________________\n");
-        vga_print("== Graphics & Desktop ==          |                == Time ==\n");
-        vga_print("draw ( circle/ rect);             |           time; date; clock;\n");
-        vga_print("draw x y z;                       |              sleep; cal;\n");
-        vga_print("logo; mintlogo; matrix;           |           (alarm) countdown\n");
-        vga_print("ida; fire; snow;                  |                         \n");
-        vga_print("sl; cls; clear; clean             |                 loadkeys\n");
-        vga_print("theme desktop; mouse; desktop;    |           loadkeys [de|en]\n");
-        vga_print("fullscreen; window                |                         \n");
-        vga_print("                                  |                         \n");
-        vga_print("__________________________________|_________________________________\n");
-        vga_print("== System Control ==              |         == Network & Misc ==\n");
-        vga_print("reboot; shutdown; halt;           |          ping x; ifconfig;\n");
-        vga_print("poweroff; logout; exit;           |            true; false;\n");
-        vga_print("passwd; spawn counter;            |    spawn checksum PATH; kill PID\n");
-        vga_print("                                  |       ps; jobs; apt install x\n");
-        vga_print("su; beep                          |              \n");
+static int shell_is_builtin(const char* name) {
+    static const char* commands[] = {
+        "help", "ls", "loadkeys", "pwd", "cd", "mkdir", "rmdir", "rm", "df", "fsck",
+        "clear", "clean", "echo", "cat", "write", "draw", "circle", "pixel", "uptime",
+        "rand", "shutdown", "version", "goonfetch", "neofetch", "mintlogo", "info", "matrix",
+        "gooneros", "uname", "hostname", "free", "ps", "jobs", "spawn", "kill", "sleep",
+        "yes", "cal", "su", "passwd", "lscpu", "top", "env", "history", "basename", "dirname",
+        "head", "tail", "wc", "touch", "cp", "mv", "stat", "find", "du", "chmod", "type",
+        "xxd", "sum", "fortune", "banner", "colors", "grep", "sort", "rev", "tr", "which",
+        "whereis", "id", "groups", "arch", "dmesg", "vmstat", "lsblk", "mount", "nproc",
+        "printf", "true", "false", "logout", "halt", "poweroff", "sl", "diff", "less", "more",
+        "nano", "vi", "vim", "apt", "pacman", "battery", "cls", "calc", "logo", "whoami",
+        "exit", "time", "date", "reboot", "meminfo", "beep", "seq", "factor", "prime", "fib",
+        "factorial", "rot13", "base64", "hex", "dec", "ascii", "chr", "man", "who", "cksum",
+        "ping", "ifconfig", "sensors", "systemctl", "journalctl", "crontab", "ida", "fire",
+        "snow", "clock", "theme", "window", "mouse", "append", "search", "alarm", "countdown",
+        "genpass", "wipe", "desktop", "fullscreen", "dih", "fasfetch", "uniq", "paging",
+        "userdemo", "userfault"
+    };
+    if(!name || !name[0]) return 0;
+    for(unsigned int i = 0; i < sizeof(commands)/sizeof(commands[0]); i++)
+        if(strcmp(name, commands[i]) == 0) return 1;
+    return 0;
+}
 
+static void shell_execute_simple(void) {
+    input_buf[input_idx] = 0;
+    shell_status = 0;
+    if(strcmp(input_buf, "help") == 0) {
+        print_ui(
+            "Core tools: ls cd pwd tree find mkdir rmdir rm mv touch cat write append cp stat df du fsck grep sort uniq wc head tail basename dirname cksum xxd echo printf loadkeys date time uptime uname hostname calc userdemo userfault\n",
+            "Grundbefehle: ls cd pwd tree find mkdir rmdir rm mv touch cat write append cp stat df du fsck grep sort uniq wc head tail basename dirname cksum xxd echo printf loadkeys date time uptime uname hostname calc userdemo userfault\n");
+        print_ui(
+            "More: clear diff rev tr seq factor prime fib factorial base64 hex dec ascii chr man paging spawn kill ps jobs top env history cal free lscpu lsblk mount theme mouse fullscreen\n",
+            "Weitere: clear diff rev tr seq factor prime fib factorial base64 hex dec ascii chr man paging spawn kill ps jobs top env history cal free lscpu lsblk mount theme mouse fullscreen\n");
+        print_ui("Operators: COMMAND && COMMAND, COMMAND | FILTER, COMMAND > FILE, COMMAND >> FILE\n",
+                 "Operatoren: BEFEHL && BEFEHL, BEFEHL | FILTER, BEFEHL > DATEI, BEFEHL >> DATEI\n");
+        print_ui("Pipelines: cat, grep, sort, uniq, wc, head, tail, tr accept piped text\n",
+                 "Pipes: cat, grep, sort, uniq, wc, head, tail, tr verarbeiten Text aus einer Pipe\n");
+        print_ui(
+            "Not implemented: chmod, systemctl, apt, ping, ifconfig, sensors, journalctl, crontab, nano\n",
+            "Nicht implementiert: chmod, systemctl, apt, ping, ifconfig, sensors, journalctl, crontab, nano\n");
     }
     else if(strncmp(input_buf, "ls", 2) == 0 && (input_buf[2] == 0 || input_buf[2] == ' ')) {
         char path[FS_NAME_LEN];
@@ -360,35 +428,45 @@ void handle_command(void) {
             while(*arg == ' ') arg++;
         }
         if(invalid_option) {
-            vga_print("Usage: ls [-a] [-l] [PATH] (also -la/-al)\n");
+            shell_status = 1;
+            print_ui("Usage: ls [-a] [-l] [PATH] (also -la/-al)\n",
+                     "Aufruf: ls [-a] [-l] [PFAD] (auch -la/-al)\n");
         } else if(!*arg) {
             for(int i = 0; i < FS_NAME_LEN; i++) path[i] = fs_cwd[i];
             list_directory(path, long_format, show_hidden);
         } else if(resolve_fs_path(arg, path)) {
             list_directory(path, long_format, show_hidden);
-        } else vga_print("ls: Path is too long or invalid\n");
+        } else {
+            shell_status = 1;
+            print_ui("ls: Path is too long or invalid\n", "ls: Pfad ist zu lang oder ungueltig\n");
+        }
     }
     else if(strcmp(input_buf, "loadkeys") == 0) {
-        vga_print("Keyboard layout: ");
+        print_ui("Keyboard layout: ", "Tastaturlayout: ");
         vga_print(keyboard_get_layout() == KEYBOARD_LAYOUT_EN ? "en (QWERTY)\n" : "de (QWERTZ)\n");
-        vga_print("Switch with: loadkeys de | loadkeys en\n");
+        print_ui("Language follows the keyboard layout. Switch with: loadkeys de | loadkeys en\n",
+                 "Die Sprache folgt dem Tastaturlayout. Wechsel mit: loadkeys de | loadkeys en\n");
     }
     else if(strcmp(input_buf, "loadkeys de") == 0 || strcmp(input_buf, "loadkeys en") == 0) {
         int layout = input_buf[9] == 'e' ? KEYBOARD_LAYOUT_EN : KEYBOARD_LAYOUT_DE;
         keyboard_set_layout(layout);
         const char config[] = {'1', ',', input_buf[9], input_buf[10], '\n'};
         if(fs_write("goonkeys.cfg", config, sizeof(config))) {
-            vga_print("Keyboard layout ");
             vga_print(layout == KEYBOARD_LAYOUT_EN ? "en (QWERTY)" : "de (QWERTZ)");
-            vga_print(" selected and saved\n");
+            print_ui(" selected; system language saved\n", " ausgewaehlt; Systemsprache gespeichert\n");
         } else {
-            vga_print("Layout selected but not saved; check the filesystem or disk\n");
+            shell_status = 1;
+            print_ui("Layout selected but not saved; check the filesystem or disk\n",
+                     "Layout gewaehlt, aber nicht gespeichert; Dateisystem oder Datentraeger pruefen\n");
         }
     }
     else if(strcmp(input_buf, "pwd") == 0)
         print_working_directory();
     else if(strncmp(input_buf, "loadkeys ", 9) == 0)
-        vga_print("Usage: loadkeys de | loadkeys en\n");
+    {
+        shell_status = 1;
+        print_ui("Usage: loadkeys de | loadkeys en\n", "Aufruf: loadkeys de | loadkeys en\n");
+    }
     else if(strcmp(input_buf, "cd") == 0 || strcmp(input_buf, "cd /") == 0)
         fs_cwd[0] = 0;
     else if(strncmp(input_buf, "cd ", 3) == 0) {
@@ -397,7 +475,11 @@ void handle_command(void) {
             int i = 0;
             while(path[i]) { fs_cwd[i] = path[i]; i++; }
             fs_cwd[i] = 0;
-        } else vga_print("cd: Directory not found or path too long\n");
+        } else {
+            shell_status = 1;
+            print_ui("cd: Directory not found or path too long\n",
+                     "cd: Verzeichnis nicht gefunden oder Pfad zu lang\n");
+        }
     }
     else if(strncmp(input_buf, "mkdir ", 6) == 0) {
         char* arg = &input_buf[6];
@@ -409,28 +491,55 @@ void handle_command(void) {
             while(*arg == ' ') arg++;
         }
         char path[FS_NAME_LEN];
-        if(!*arg) vga_print("Usage: mkdir [-p] DIRECTORY\n");
-        else if(!resolve_fs_path(arg, path)) vga_print("mkdir: invalid or overlong path\n");
-        else if(parents ? make_directories(path) : fs_mkdir(path)) vga_print("Directory created\n");
-        else vga_print("mkdir: already exists, parent missing, or filesystem full\n");
+        if(!*arg) print_ui("Usage: mkdir [-p] DIRECTORY\n", "Aufruf: mkdir [-p] VERZEICHNIS\n");
+        else if(!resolve_fs_path(arg, path)) {
+            shell_status = 1;
+            print_ui("mkdir: invalid or overlong path\n", "mkdir: ungueltiger oder zu langer Pfad\n");
+        }
+        else if(parents ? make_directories(path) : fs_mkdir(path)) print_ui("Directory created\n", "Verzeichnis erstellt\n");
+        else {
+            shell_status = 1;
+            print_ui("mkdir: already exists, parent missing, or filesystem full\n",
+                     "mkdir: bereits vorhanden, Elternverzeichnis fehlt oder Dateisystem voll\n");
+        }
     }
     else if(strcmp(input_buf, "mkdir") == 0)
-        vga_print("Usage: mkdir DIRECTORY\n");
+    {
+        shell_status = 1;
+        print_ui("Usage: mkdir DIRECTORY\n", "Aufruf: mkdir VERZEICHNIS\n");
+    }
     else if(strncmp(input_buf, "rmdir ", 6) == 0) {
         char path[FS_NAME_LEN];
-        if(!resolve_fs_path(&input_buf[6], path)) vga_print("rmdir: invalid or overlong path\n");
-        else if(fs_rmdir(path)) { leave_removed_directory(path); vga_print("Directory removed\n"); }
-        else vga_print("rmdir: directory is not empty or was not found\n");
+        if(!resolve_fs_path(&input_buf[6], path)) {
+            shell_status = 1;
+            print_ui("rmdir: invalid or overlong path\n", "rmdir: ungueltiger oder zu langer Pfad\n");
+        }
+        else if(fs_rmdir(path)) { leave_removed_directory(path); print_ui("Directory removed\n", "Verzeichnis entfernt\n"); }
+        else {
+            shell_status = 1;
+            print_ui("rmdir: directory is not empty or was not found\n",
+                     "rmdir: Verzeichnis nicht leer oder nicht gefunden\n");
+        }
     }
     else if(strcmp(input_buf, "rmdir") == 0)
-        vga_print("Usage: rmdir DIRECTORY (must be empty)\n");
+    {
+        shell_status = 1;
+        print_ui("Usage: rmdir DIRECTORY (must be empty)\n",
+                 "Aufruf: rmdir VERZEICHNIS (muss leer sein)\n");
+    }
     else if(strncmp(input_buf, "rm -r ", 6) == 0) {
         char path[FS_NAME_LEN];
-        if(!resolve_fs_path(&input_buf[6], path)) vga_print("rm -r: invalid or overlong path\n");
+        if(!resolve_fs_path(&input_buf[6], path)) {
+            shell_status = 1;
+            print_ui("rm -r: invalid or overlong path\n", "rm -r: ungueltiger oder zu langer Pfad\n");
+        }
         else if(fs_remove_tree(path)) {
             leave_removed_directory(path);
-            vga_print("Directory tree removed\n");
-        } else vga_print("rm -r: directory not found\n");
+            print_ui("Directory tree removed\n", "Verzeichnisbaum entfernt\n");
+        } else {
+            shell_status = 1;
+            print_ui("rm -r: directory not found\n", "rm -r: Verzeichnis nicht gefunden\n");
+        }
     }
     else if(strcmp(input_buf, "df") == 0) {
         int used_blocks = 0;
@@ -438,7 +547,8 @@ void handle_command(void) {
             if(fs_table[i].used) used_blocks++;
         int capacity = FS_MAX_FILES * FS_MAX_FILE_BYTES;
         int used = used_blocks * FS_MAX_FILE_BYTES;
-        vga_print("Filesystem      Size(KiB) Used(KiB) Avail(KiB) (reserved blocks)\n");
+        print_ui("Filesystem      Size(KiB) Used(KiB) Avail(KiB) (reserved blocks)\n",
+                 "Dateisystem     Groesse(KiB) Belegt(KiB) Frei(KiB) (reservierte Bloecke)\n");
         vga_print("/dev/ata0-fs    ");
         print_int(capacity / 1024); vga_print("        ");
         print_int(used / 1024); vga_print("        ");
@@ -446,14 +556,22 @@ void handle_command(void) {
     }
     else if(strcmp(input_buf, "fsck") == 0) {
         int errors = fs_check();
-        if(errors == 0) vga_print("Filesystem clean\n");
-        else { vga_print("Filesystem errors: "); print_int(errors); vga_putc('\n'); }
+        if(errors == 0) print_ui("Filesystem clean\n", "Dateisystem fehlerfrei\n");
+        else { shell_status = 1; print_ui("Filesystem errors: ", "Dateisystemfehler: "); print_int(errors); vga_putc('\n'); }
     }
     else if(strcmp(input_buf, "clear") == 0 || strcmp(input_buf, "clean") == 0) {
         if(desktop_active) vga_clear_region(); else vga_clear();
     }
     else if(strncmp(input_buf, "echo ", 5) == 0) {
         vga_print(&input_buf[5]); vga_putc('\n');
+    }
+    else if(strcmp(input_buf, "echo") == 0)
+        vga_putc('\n');
+    else if(strcmp(input_buf, "cat") == 0) {
+        if(!shell_stdin_data)
+            print_ui("Usage: cat FILE or use cat in a pipeline\n",
+                     "Aufruf: cat DATEI oder cat in einer Pipe nutzen\n");
+        else vga_print(shell_stdin_data);
     }
     else if(strncmp(input_buf, "cat ", 4) == 0) {
         char* arg = &input_buf[4];
@@ -464,8 +582,13 @@ void handle_command(void) {
             while(*arg == ' ') arg++;
         }
         char path[FS_NAME_LEN];
-        if(!resolve_fs_path(arg, path)) vga_print("cat: invalid or overlong path\n");
-        else if(fs_read(path, cmd_buf, sizeof(cmd_buf)) < 0) vga_print("cat: file not found or not a regular file\n");
+        if(!resolve_fs_path(arg, path)) {
+            shell_status = 1;
+            print_ui("cat: invalid or overlong path\n", "cat: ungueltiger oder zu langer Pfad\n");
+        } else if(fs_read(path, cmd_buf, sizeof(cmd_buf)) < 0) {
+            shell_status = 1;
+            print_ui("cat: file not found or not a regular file\n", "cat: Datei nicht gefunden oder keine regulaere Datei\n");
+        }
         else if(!number_lines) { vga_print(cmd_buf); vga_putc('\n'); }
         else {
             int line = 1;
@@ -488,34 +611,45 @@ void handle_command(void) {
         if(*sp) {
             *sp = 0;
             char path[FS_NAME_LEN];
-            if(!resolve_fs_path(&input_buf[6], path)) vga_print("write: invalid or overlong path\n");
+            if(!resolve_fs_path(&input_buf[6], path)) {
+                shell_status = 1;
+                print_ui("write: invalid or overlong path\n", "write: ungueltiger oder zu langer Pfad\n");
+            }
             else if(fs_write(path, sp+1, strlen(sp+1))) vga_print("OK\n");
-            else vga_print("write: failed (check parent directory, size, or disk)\n");
+            else {
+                shell_status = 1;
+                print_ui("write: failed (check parent directory, size, or disk)\n",
+                         "write: fehlgeschlagen (Elternverzeichnis, Groesse oder Datentraeger pruefen)\n");
+            }
         }
-        else vga_print("Usage: write name data\n");
+        else {
+            shell_status = 1;
+            print_ui("Usage: write FILE TEXT\n", "Aufruf: write DATEI TEXT\n");
+        }
     }
     else if(strcmp(input_buf, "draw rm") == 0) {
         clear_last_draw();
         last_draw_active = 0;
-        vga_print("Removed\n");
+        print_ui("Removed\n", "Entfernt\n");
     }
     else if(strcmp(input_buf, "draw rectangle") == 0 || strcmp(input_buf, "draw rect") == 0) {
         clear_last_draw();
         draw_rect(512-60, 384-40, 120, 80, 0x00FF00);
         remember_draw(512-60, 384-40, 120, 80);
-        vga_print("Drawn\n");
+        print_ui("Drawn\n", "Gezeichnet\n");
     }
     else if(strcmp(input_buf, "draw circle") == 0) {
         clear_last_draw();
         draw_circle_filled(512, 384, 60, 0x00FF00);
         remember_draw(512-60, 384-60, 121, 121);
-        vga_print("Drawn\n");
+        print_ui("Drawn\n", "Gezeichnet\n");
     }
     else if(strncmp(input_buf, "draw ", 5) == 0) {
         char* p = &input_buf[5];
         while(*p == ' ') p++;
         if(!((*p >= '0' && *p <= '9') || *p == '-')) {
-            vga_print("Usage: draw x y w h | draw rectangle | draw circle\n");
+            print_ui("Usage: draw x y w h | draw rectangle | draw circle\n",
+                     "Aufruf: draw x y breite hoehe | draw rectangle | draw circle\n");
         } else {
             int x = parse_int(&p);
             int y = parse_int(&p);
@@ -526,22 +660,34 @@ void handle_command(void) {
             clear_last_draw();
             draw_rect(x, y, w, h, 0x00FF00);
             remember_draw(x, y, w, h);
-            vga_print("Drawn at "); print_int(x); vga_putc(','); print_int(y);
-            vga_print(" size "); print_int(w); vga_putc('x'); print_int(h); vga_putc('\n');
+            print_ui("Drawn at ", "Gezeichnet bei "); print_int(x); vga_putc(','); print_int(y);
+            print_ui(" size ", " Groesse "); print_int(w); vga_putc('x'); print_int(h); vga_putc('\n');
         }
     }
     else if(strcmp(input_buf, "draw") == 0)
-        vga_print("Usage: draw x y w h | draw rectangle | draw circle\n");
+        print_ui("Usage: draw x y w h | draw rectangle | draw circle\n",
+                 "Aufruf: draw x y breite hoehe | draw rectangle | draw circle\n");
     else if(strncmp(input_buf, "circle ", 7) == 0) {
         char* p = &input_buf[7];
         int x = parse_int(&p);
         int y = parse_int(&p);
         int r = parse_int(&p);
         if(r <= 0) r = 40;
+        if(r > VESA_WIDTH) r = VESA_WIDTH;
+        if(x < -r || x >= VESA_WIDTH+r || y < -r || y >= VESA_HEIGHT+r) {
+            print_ui("circle: drawing is outside the display\n",
+                     "circle: Kreis liegt ausserhalb der Anzeige\n");
+            goto command_done;
+        }
         clear_last_draw();
         draw_circle_filled(x, y, r, 0x00FFFF);
-        remember_draw(x-r, y-r, r*2+1, r*2+1);
-        vga_print("Drawn\n");
+        int left = x-r, top = y-r, right = x+r+1, bottom = y+r+1;
+        if(left < 0) left = 0;
+        if(top < 0) top = 0;
+        if(right > VESA_WIDTH) right = VESA_WIDTH;
+        if(bottom > VESA_HEIGHT) bottom = VESA_HEIGHT;
+        remember_draw(left, top, right-left, bottom-top);
+        print_ui("Drawn\n", "Gezeichnet\n");
     }
     else if(strncmp(input_buf, "pixel ", 6) == 0) {
         char* p = &input_buf[6];
@@ -559,13 +705,13 @@ void handle_command(void) {
         print_int((int)(seed % 100)); vga_putc('\n');
     }
     else if(strcmp(input_buf, "shutdown") == 0) {
-        vga_print("Shutting down...\n");
+        print_ui("Shutting down...\n", "System wird heruntergefahren...\n");
         outw(0x604, 0x2000);
         outw(0xB004, 0x2000);
         for(;;) asm volatile("hlt");
     }
     else if(strcmp(input_buf, "version") == 0)
-        vga_print("GOonerOS v0.10 Full 780L\n");
+        print_ui("GOonerOS v0.10 Full 780L\n", "GOonerOS v0.10 Vollversion 780L\n");
     else if(strcmp(input_buf, "goonfetch") == 0)
         goonfetch();
     else if(strcmp(input_buf, "neofetch") == 0) {
@@ -574,20 +720,27 @@ void handle_command(void) {
     else if(strcmp(input_buf, "mintlogo") == 0) {
         mint_visible = !mint_visible;
         draw_mint_logo(mint_visible);
-        vga_print(mint_visible ? "Mint-Logo an\n" : "Mint-Logo aus\n");
+        vga_print(mint_visible ? ui_text("Mint logo on\n", "Mint-Logo an\n")
+                               : ui_text("Mint logo off\n", "Mint-Logo aus\n"));
     }
     else if(strcmp(input_buf, "info") == 0) {
-        vga_print("=== GoonerOS System Information ===\n");
-        vga_print("Version: v0.10 Full 780L\n");
-        vga_print("Resolution: 1024x768 ("); print_int(1024*768); vga_print(" pixels)\n");
-        vga_print("Uptime: "); print_int(ticks/1000); vga_print("s ("); print_int((int)ticks); vga_print(" Ticks)\n");
-        vga_print("Size: ~3200 lines of C and assembly\n");
-        vga_print("  Boot: ~200 lines of assembly\n");
-        vga_print("  Linker: ~30 lines of linker script\n");
-        vga_print("  ISR/interrupts: ~125 lines of assembly\n");
-        vga_print("  Kernel: ~2820 lines of C\n");
-        vga_print("Mode: 32-bit protected mode\n");
-        vga_print("Framebuffer: "); print_int((int)vga_get_pitch()); vga_print(" bytes/row, "); print_int((int)vga_get_bpp()); vga_print(" bpp\n");
+        print_ui("=== GoonerOS System Information ===\n", "=== GoonerOS-Systeminformationen ===\n");
+        print_ui("Version: v0.10 Full 780L\n", "Version: v0.10 Vollversion 780L\n");
+        print_ui("Resolution: ", "Aufloesung: ");
+        print_int(VESA_WIDTH); vga_putc('x'); print_int(VESA_HEIGHT);
+        vga_print(" ("); print_int(VESA_WIDTH*VESA_HEIGHT); print_ui(" pixels)\n", " Pixel)\n");
+        print_ui("Uptime: ", "Laufzeit: "); print_int(ticks/1000);
+        print_ui("s (", "s ("); print_int((int)ticks); print_ui(" ticks)\n", " Ticks)\n");
+        print_ui("Kernel: 32-bit protected mode\n", "Kernel: 32-Bit Protected Mode\n");
+        print_ui("Framebuffer: ", "Framebuffer: ");
+        print_int((int)vga_get_pitch()); print_ui(" bytes/row, ", " Bytes/Zeile, ");
+        print_int((int)vga_get_bpp()); vga_print(" bpp\n");
+        print_ui("Keyboard layout: ", "Tastaturlayout: ");
+        vga_print(keyboard_get_layout() == KEYBOARD_LAYOUT_EN ? "en (QWERTY)\n" : "de (QWERTZ)\n");
+        print_ui("Filesystem check: ", "Dateisystempruefung: ");
+        int errors = fs_check();
+        if(errors == 0) print_ui("clean\n", "fehlerfrei\n");
+        else { print_int(errors); print_ui(" errors\n", " Fehler\n"); }
     }
     else if(strcmp(input_buf, "matrix") == 0) {
         static int col_y[VESA_WIDTH/8];
@@ -636,55 +789,69 @@ void handle_command(void) {
     else if(strcmp(input_buf, "hostname") == 0)
         vga_print("GoonerOS\n");
     else if(strcmp(input_buf, "free") == 0) {
-        vga_print("Heap allocator (not total physical RAM)\n");
-        vga_print("Allocated: "); print_int((int)(heap_ptr-HEAP_START)); vga_print(" bytes\n");
-        vga_print("Total RAM: not detected by this kernel\n");
+        print_ui("Kernel heap (not total physical memory)\n",
+                 "Kernel-Heap (nicht der gesamte physische Speicher)\n");
+        print_ui("Allocated: ", "Belegt: ");
+        print_int((int)(heap_ptr-HEAP_START)); print_ui(" bytes\n", " Bytes\n");
+        print_ui("Total RAM: not detected by this kernel\n",
+                 "Gesamter Arbeitsspeicher: vom Kernel nicht erkannt\n");
     }
     else if(strcmp(input_buf, "ps") == 0 || strcmp(input_buf, "jobs") == 0) {
-        vga_print("PID  TASK       STATE      PROGRESS / RESULT\n");
-        vga_print("  1  kernel_main      running     event loop\n");
+        print_ui("PID  TASK       STATE      PROGRESS / RESULT\n",
+                 "PID  AUFGABE    STATUS     FORTSCHRITT / ERGEBNIS\n");
+        vga_print("  1  kernel_main      ");
+        print_ui("running     event loop\n", "aktiv       Ereignisschleife\n");
         for(int i = 0; i < scheduler_task_count(); i++) {
             int pid, type, state;
             unsigned int steps, progress, total, result;
             if(!scheduler_get_task_info(i, &pid, &type, &state, &steps, &progress, &total, &result))
                 continue;
-            vga_putc(' '); print_int(pid); vga_print(type == SCHEDULER_TASK_CHECKSUM ? "  checksum   " : "  counter    ");
-            vga_print(state == SCHEDULER_STATE_DONE ? "done       " : "runnable   ");
+            vga_putc(' '); print_int(pid);
+            vga_print(type == SCHEDULER_TASK_CHECKSUM
+                ? ui_text("  checksum   ", "  Pruefsumme  ")
+                : ui_text("  counter    ", "  Zaehler     "));
+            vga_print(state == SCHEDULER_STATE_DONE
+                ? ui_text("done       ", "fertig      ")
+                : ui_text("runnable   ", "bereit      "));
             if(type == SCHEDULER_TASK_CHECKSUM) {
                 print_int((int)progress); vga_putc('/'); print_int((int)total);
                 if(state == SCHEDULER_STATE_DONE) {
                     vga_print("  CRC32=0x"); print_hex32(result);
                 }
             } else {
-                print_int((int)steps); vga_print(" steps");
+                print_int((int)steps); print_ui(" steps", " Schritte");
             }
             vga_putc('\n');
         }
-        vga_print("Cooperative tasks: "); print_int(scheduler_task_count());
-        vga_print(" (one bounded work-slice per event-loop turn)\n");
+        print_ui("Cooperative tasks: ", "Kooperative Aufgaben: ");
+        print_int(scheduler_task_count());
+        print_ui(" (one bounded work-slice per event-loop turn)\n",
+                 " (ein begrenzter Arbeitsschritt pro Ereignisschleifen-Durchlauf)\n");
     }
     else if(strcmp(input_buf, "spawn counter") == 0) {
         int pid = scheduler_spawn_counter();
-        if(pid < 0) vga_print("spawn: task table is full\n");
-        else { vga_print("Cooperative counter started, PID "); print_int(pid); vga_putc('\n'); }
+        if(pid < 0) print_ui("spawn: task table is full\n", "spawn: Aufgabentabelle ist voll\n");
+        else { print_ui("Cooperative counter started, PID ", "Kooperativer Zaehler gestartet, PID "); print_int(pid); vga_putc('\n'); }
     }
     else if(strncmp(input_buf, "spawn checksum ", 15) == 0) {
         char path[FS_NAME_LEN];
         if(!resolve_fs_path(&input_buf[15], path) || !path[0]) {
-            vga_print("Usage: spawn checksum FILE (path is invalid or too long)\n");
+            print_ui("Usage: spawn checksum FILE (path is invalid or too long)\n",
+                     "Aufruf: spawn checksum DATEI (Pfad ungueltig oder zu lang)\n");
         } else {
             int pid = scheduler_spawn_checksum(path);
-            if(pid < 0) vga_print("spawn checksum: file unreadable, task table full, or CRC task already running\n");
-            else { vga_print("Cooperative CRC32 job started, PID "); print_int(pid); vga_putc('\n'); }
+            if(pid < 0) print_ui("spawn checksum: file unreadable, task table full, or CRC task already running\n",
+                                 "spawn checksum: Datei unlesbar, Aufgabentabelle voll oder CRC-Aufgabe laeuft bereits\n");
+            else { print_ui("Cooperative CRC32 job started, PID ", "Kooperative CRC32-Aufgabe gestartet, PID "); print_int(pid); vga_putc('\n'); }
         }
     }
     else if(strcmp(input_buf, "spawn checksum") == 0)
-        vga_print("Usage: spawn checksum FILE\n");
+        print_ui("Usage: spawn checksum FILE\n", "Aufruf: spawn checksum DATEI\n");
     else if(strncmp(input_buf, "kill ", 5) == 0) {
         char* p = &input_buf[5];
         int pid = parse_int(&p);
-        if(scheduler_kill(pid)) { vga_print("Task stopped: "); print_int(pid); vga_putc('\n'); }
-        else vga_print("kill: unknown or protected PID\n");
+        if(scheduler_kill(pid)) { print_ui("Task stopped: ", "Aufgabe beendet: "); print_int(pid); vga_putc('\n'); }
+        else print_ui("kill: unknown or protected PID\n", "kill: unbekannte oder geschuetzte PID\n");
     }
     else if(strncmp(input_buf, "sleep ", 6) == 0) {
         char* p = &input_buf[6];
@@ -703,22 +870,24 @@ void handle_command(void) {
         do { read_rtc_raw(&h,&m,&s,&d,&mo,&y); read_rtc_raw(&h2,&m2,&s2,&d2,&mo2,&y2); }
         while(h!=h2||m!=m2||s!=s2||d!=d2||mo!=mo2||y!=y2);
         if(!(cmos_read(0x0B) & 0x04)) { d = bcd_to_bin(d); mo = bcd_to_bin(mo); y = bcd_to_bin(y); }
-        vga_print("Today: "); print_int(d); vga_putc('/'); print_int(mo); vga_print("/20"); print_int(y); vga_putc('\n');
+        print_ui("Today: ", "Heute: "); print_int(d); vga_putc('/'); print_int(mo); vga_print("/20"); print_int(y); vga_putc('\n');
     }
     else if(strcmp(input_buf, "su") == 0)
-        vga_print("You are already root\n");
+        print_ui("You are already root\n", "Du bist bereits root\n");
     else if(strcmp(input_buf, "passwd") == 0)
-        vga_print("No password required!\n");
+        print_ui("No password is configured\n", "Es ist kein Passwort eingerichtet\n");
     else if(strcmp(input_buf, "lscpu") == 0) {
-        vga_print("Architecture: i686-compatible x86 target\n");
-        vga_print("Mode: 32-bit Protected Mode\n");
-        vga_print("CPU topology: not detected\n");
+        print_ui("Architecture: i686-compatible x86 target\n", "Architektur: i686-kompatibles x86-Ziel\n");
+        print_ui("Mode: 32-bit Protected Mode\n", "Modus: 32-Bit Protected Mode\n");
+        print_ui("CPU topology: not detected\n", "CPU-Topologie: nicht erkannt\n");
     }
     else if(strcmp(input_buf, "top") == 0) {
-        vga_print("CONTEXT       STATE       DETAIL\n");
-        vga_print("kernel_main   running     "); print_int(heap_ptr-HEAP_START); vga_print(" B heap\n");
-        vga_print("cooperative   runnable    "); print_int(scheduler_task_count()); vga_print(" tasks, bounded slices\n");
-        vga_print("Uptime: "); print_int(ticks/1000); vga_print("s\n");
+        print_ui("CONTEXT       STATE       DETAIL\n", "KONTEXT       STATUS      DETAIL\n");
+        vga_print("kernel_main   "); print_ui("running     ", "aktiv       ");
+        print_int(heap_ptr-HEAP_START); print_ui(" B heap\n", " B Heap\n");
+        print_ui("cooperative   runnable    ", "kooperativ    bereit      ");
+        print_int(scheduler_task_count()); print_ui(" tasks, bounded slices\n", " Aufgaben, begrenzte Zeitscheiben\n");
+        print_ui("Uptime: ", "Laufzeit: "); print_int(ticks/1000); vga_print("s\n");
     }
     else if(strcmp(input_buf, "env") == 0) {
         vga_print("OS=GoonerOS\n");
@@ -731,27 +900,119 @@ void handle_command(void) {
             print_int(i+1); vga_putc(' '); vga_print(cmd_history[i % 8]); vga_putc('\n');
         }
     }
-    else if(strncmp(input_buf, "head ", 5) == 0 || strncmp(input_buf, "tail ", 5) == 0) {
-        int is_tail = (input_buf[0] == 't');
-        if(read_file_from_cwd(&input_buf[5], cmd_buf, sizeof(cmd_buf)) < 0) { vga_print("File not found\n"); }
-        else {
-            int len = strlen(cmd_buf);
-            if(!is_tail) {
-                int lines = 0, i = 0;
-                while(i < len && lines < 5) { if(cmd_buf[i] == '\n') lines++; i++; }
-                char saved = cmd_buf[i]; cmd_buf[i] = 0;
-                vga_print(cmd_buf); vga_putc('\n');
-                cmd_buf[i] = saved;
-            } else {
-                int lines = 0, i = len;
-                while(i > 0 && lines < 5) { i--; if(cmd_buf[i] == '\n') lines++; }
-                if(i > 0) i++;
-                vga_print(&cmd_buf[i]); vga_putc('\n');
-            }
+    else if(strncmp(input_buf, "basename ", 9) == 0) {
+        char* path = &input_buf[9];
+        if(!*path) {
+            print_ui("Usage: basename PATH\n", "Aufruf: basename PFAD\n");
+            goto command_done;
+        }
+        int len = strlen(path);
+        while(len > 1 && path[len-1] == '/') len--;
+        if(len == 1 && path[0] == '/') {
+            vga_print("/\n");
+        } else {
+            int start = len;
+            while(start > 0 && path[start-1] != '/') start--;
+            while(start < len) vga_putc(path[start++]);
+            vga_putc('\n');
         }
     }
-    else if(strncmp(input_buf, "wc ", 3) == 0) {
-        if(read_file_from_cwd(&input_buf[3], cmd_buf, sizeof(cmd_buf)) < 0) { vga_print("File not found\n"); }
+    else if(strcmp(input_buf, "basename") == 0)
+        print_ui("Usage: basename PATH\n", "Aufruf: basename PFAD\n");
+    else if(strncmp(input_buf, "dirname ", 8) == 0) {
+        char* path = &input_buf[8];
+        if(!*path) {
+            print_ui("Usage: dirname PATH\n", "Aufruf: dirname PFAD\n");
+            goto command_done;
+        }
+        int len = strlen(path);
+        while(len > 1 && path[len-1] == '/') len--;
+        while(len > 0 && path[len-1] != '/') len--;
+        while(len > 1 && path[len-1] == '/') len--;
+        if(len == 0) vga_print(".\n");
+        else {
+            for(int i = 0; i < len; i++) vga_putc(path[i]);
+            vga_putc('\n');
+        }
+    }
+    else if(strcmp(input_buf, "dirname") == 0)
+        print_ui("Usage: dirname PATH\n", "Aufruf: dirname PFAD\n");
+    else if(strcmp(input_buf, "head") == 0 || strcmp(input_buf, "tail") == 0) {
+        if(!shell_stdin_data)
+            print_ui("Usage: head|tail [-n COUNT] FILE\n",
+                     "Aufruf: head|tail [-n ANZAHL] DATEI\n");
+        else {
+            int is_tail = input_buf[0] == 't';
+            int len = read_shell_input(0, cmd_buf, sizeof(cmd_buf));
+            int start = 0, end = len, lines = 0;
+            if(is_tail) {
+                start = len;
+                while(start > 0) {
+                    start--;
+                    if(cmd_buf[start] == '\n' && start < len-1 && ++lines == 5) { start++; break; }
+                }
+                if(lines < 5) start = 0;
+            } else {
+                end = 0;
+                while(end < len && lines < 5) if(cmd_buf[end++] == '\n') lines++;
+            }
+            char saved = cmd_buf[end]; cmd_buf[end] = 0; vga_print(&cmd_buf[start]); cmd_buf[end] = saved;
+        }
+    }
+    else if(strncmp(input_buf, "head ", 5) == 0 || strncmp(input_buf, "tail ", 5) == 0) {
+        int is_tail = (input_buf[0] == 't');
+        char* arg = &input_buf[5];
+        while(*arg == ' ') arg++;
+        int line_limit = 5;
+        if(strncmp(arg, "-n", 2) == 0 && (arg[2] == ' ' || arg[2] == 0)) {
+            arg += 2;
+            while(*arg == ' ') arg++;
+            if(*arg < '0' || *arg > '9') {
+                print_ui("Usage: head|tail [-n COUNT] FILE\n",
+                         "Aufruf: head|tail [-n ANZAHL] DATEI\n");
+                goto command_done;
+            }
+            line_limit = parse_int(&arg);
+            while(*arg == ' ') arg++;
+        }
+        if(!*arg && !shell_stdin_data) {
+            print_ui("Usage: head|tail [-n COUNT] FILE\n",
+                     "Aufruf: head|tail [-n ANZAHL] DATEI\n");
+        } else if(read_shell_input(*arg ? arg : 0, cmd_buf, sizeof(cmd_buf)) < 0) {
+            print_ui("File not found\n", "Datei nicht gefunden\n");
+        } else if(line_limit > 0) {
+            int len = strlen(cmd_buf);
+            int start = 0, end = len;
+            if(!is_tail) {
+                int lines = 0;
+                end = 0;
+                while(end < len && lines < line_limit) {
+                    if(cmd_buf[end++] == '\n') lines++;
+                }
+            } else {
+                int lines = 0;
+                start = len;
+                while(start > 0) {
+                    start--;
+                    if(cmd_buf[start] != '\n' || start == len-1) continue;
+                    if(++lines == line_limit) {
+                        start++;
+                        break;
+                    }
+                }
+                if(lines < line_limit) start = 0;
+            }
+            char saved = cmd_buf[end];
+            cmd_buf[end] = 0;
+            vga_print(&cmd_buf[start]);
+            cmd_buf[end] = saved;
+            if(end > start && cmd_buf[end-1] != '\n') vga_putc('\n');
+        }
+    }
+    else if(strcmp(input_buf, "wc") == 0 || strncmp(input_buf, "wc ", 3) == 0) {
+        const char* source = input_buf[2] ? &input_buf[3] : 0;
+        if(read_shell_input(source, cmd_buf, sizeof(cmd_buf)) < 0)
+            print_ui("File not found\n", "Datei nicht gefunden\n");
         else {
             int chars = 0, words = 0, lines = 0, in_word = 0;
             for(int i = 0; cmd_buf[i]; i++) {
@@ -763,17 +1024,53 @@ void handle_command(void) {
             print_int(lines); vga_putc(' '); print_int(words); vga_putc(' '); print_int(chars); vga_putc('\n');
         }
     }
+    else if(strcmp(input_buf, "uniq") == 0 || strncmp(input_buf, "uniq ", 5) == 0) {
+        const char* source = input_buf[4] ? &input_buf[5] : 0;
+        if(read_shell_input(source, cmd_buf, sizeof(cmd_buf)) < 0) {
+            shell_status = 1;
+            print_ui("Usage: uniq [FILE] or use uniq in a pipeline\n",
+                     "Aufruf: uniq [DATEI] oder uniq in einer Pipe nutzen\n");
+        } else {
+            int start = 0, len = strlen(cmd_buf);
+            char* previous = 0;
+            for(int i = 0; i <= len; i++) {
+                if(cmd_buf[i] != '\n' && cmd_buf[i] != 0) continue;
+                char saved = cmd_buf[i];
+                cmd_buf[i] = 0;
+                if(!previous || strcmp(previous, &cmd_buf[start]) != 0) {
+                    vga_print(&cmd_buf[start]);
+                    if(saved == '\n') vga_putc('\n');
+                }
+                previous = &cmd_buf[start];
+                start = i + 1;
+                if(saved == 0) break;
+            }
+        }
+    }
     else if(strncmp(input_buf, "touch ", 6) == 0) {
         char path[FS_NAME_LEN];
-        if(!resolve_fs_path(&input_buf[6], path)) vga_print("touch: invalid or overlong path\n");
+        if(!resolve_fs_path(&input_buf[6], path)) {
+            shell_status = 1;
+            print_ui("touch: invalid or overlong path\n", "touch: ungueltiger oder zu langer Pfad\n");
+        }
         else if(fs_create(path)) vga_print("OK\n");
-        else vga_print("touch: could not create file\n");
+        else {
+            shell_status = 1;
+            print_ui("touch: could not create file\n", "touch: Datei konnte nicht erstellt werden\n");
+        }
     }
     else if(strncmp(input_buf, "rm ", 3) == 0) {
         char path[FS_NAME_LEN];
-        if(!resolve_fs_path(&input_buf[3], path)) vga_print("rm: invalid or overlong path\n");
-        else if(fs_delete(path)) vga_print("Removed\n");
-        else vga_print("rm: file not found (use rmdir for directories)\n");
+        if(!resolve_fs_path(&input_buf[3], path)) {
+            shell_status = 1;
+            print_ui("rm: invalid or overlong path\n", "rm: ungueltiger oder zu langer Pfad\n");
+        }
+        else if(fs_delete(path)) print_ui("Removed\n", "Entfernt\n");
+        else {
+            shell_status = 1;
+            print_ui("rm: file not found (use rmdir for directories)\n",
+                     "rm: Datei nicht gefunden (fuer Verzeichnisse rmdir nutzen)\n");
+        }
     }
     else if(strncmp(input_buf, "cp ", 3) == 0) {
         char* sp = &input_buf[3];
@@ -781,12 +1078,23 @@ void handle_command(void) {
         if(*sp) {
             *sp = 0;
             char source[FS_NAME_LEN], destination[FS_NAME_LEN];
-            if(!resolve_fs_path(&input_buf[3], source) || !resolve_fs_path(sp+1, destination))
-                vga_print("cp: invalid or overlong path\n");
-            else if(fs_read(source, cmd_buf, sizeof(cmd_buf)) < 0) vga_print("cp: source file not found\n");
+            if(!resolve_fs_path(&input_buf[3], source) || !resolve_fs_path(sp+1, destination)) {
+                shell_status = 1;
+                print_ui("cp: invalid or overlong path\n", "cp: ungueltiger oder zu langer Pfad\n");
+            }
+            else if(fs_read(source, cmd_buf, sizeof(cmd_buf)) < 0) {
+                shell_status = 1;
+                print_ui("cp: source file not found\n", "cp: Quelldatei nicht gefunden\n");
+            }
             else if(fs_write(destination, cmd_buf, strlen(cmd_buf))) vga_print("OK\n");
-            else vga_print("cp: copy failed\n");
-        } else vga_print("Usage: cp SOURCE DESTINATION\n");
+            else {
+                shell_status = 1;
+                print_ui("cp: copy failed\n", "cp: Kopieren fehlgeschlagen\n");
+            }
+        } else {
+            shell_status = 1;
+            print_ui("Usage: cp SOURCE DESTINATION\n", "Aufruf: cp QUELLE ZIEL\n");
+        }
     }
     else if(strncmp(input_buf, "mv ", 3) == 0) {
         char* sp = &input_buf[3];
@@ -794,28 +1102,40 @@ void handle_command(void) {
         if(*sp) {
             *sp = 0;
             char source[FS_NAME_LEN], destination[FS_NAME_LEN];
-            if(!resolve_fs_path(&input_buf[3], source) || !resolve_fs_path(sp+1, destination))
-                vga_print("mv: invalid or overlong path\n");
-            else {
+            if(!resolve_fs_path(&input_buf[3], source) || !resolve_fs_path(sp+1, destination)) {
+                shell_status = 1;
+                print_ui("mv: invalid or overlong path\n", "mv: ungueltiger oder zu langer Pfad\n");
+            } else {
                 struct fs_entry* entry = fs_find(source);
                 int moving_directory = fs_is_directory(entry);
                 if(fs_rename(source, destination)) {
                     if(moving_directory) move_working_directory(source, destination);
                     vga_print("OK\n");
-                } else vga_print("mv: move/rename failed\n");
+                } else {
+                    shell_status = 1;
+                    print_ui("mv: move/rename failed\n", "mv: Verschieben/Umbenennen fehlgeschlagen\n");
+                }
             }
-        } else vga_print("Usage: mv OLD NEW\n");
+        } else {
+            shell_status = 1;
+            print_ui("Usage: mv OLD NEW\n", "Aufruf: mv ALT NEU\n");
+        }
     }
     else if(strncmp(input_buf, "stat ", 5) == 0) {
         char path[FS_NAME_LEN];
         struct fs_entry* e = resolve_fs_path(&input_buf[5], path) ? fs_find(path) : 0;
-        if(!e) vga_print("File not found\n");
+        if(!e) {
+            shell_status = 1;
+            print_ui("File not found\n", "Datei nicht gefunden\n");
+        }
         else {
-            vga_print("Name: "); vga_print(fs_basename(e->name)); vga_putc('\n');
-            vga_print("Path: /"); vga_print(e->name); vga_putc('\n');
-            vga_print("Type: "); vga_print(fs_is_directory(e) ? "Directory\n" : "File\n");
-            vga_print("Size: "); print_int((int)e->size); vga_print(" B\n");
-            vga_print("Start-LBA: "); print_int((int)e->start_lba); vga_putc('\n');
+            print_ui("Name: ", "Name: "); vga_print(fs_basename(e->name)); vga_putc('\n');
+            print_ui("Path: /", "Pfad: /"); vga_print(e->name); vga_putc('\n');
+            print_ui("Type: ", "Typ: ");
+            vga_print(fs_is_directory(e) ? ui_text("Directory\n", "Verzeichnis\n")
+                                         : ui_text("File\n", "Datei\n"));
+            print_ui("Size: ", "Groesse: "); print_int((int)e->size); vga_print(" B\n");
+            print_ui("Start-LBA: ", "Start-LBA: "); print_int((int)e->start_lba); vga_putc('\n');
         }
     }
     else if(strncmp(input_buf, "find ", 5) == 0) {
@@ -827,7 +1147,7 @@ void handle_command(void) {
                 vga_putc('\n'); any = 1;
             }
         }
-        if(!any) vga_print("Nothing found\n");
+        if(!any) print_ui("Nothing found\n", "Nichts gefunden\n");
     }
     else if(strcmp(input_buf, "du") == 0) {
         int total = 0, dirs = 0, files = 0;
@@ -835,12 +1155,13 @@ void handle_command(void) {
             if(fs_is_directory(&fs_table[i])) dirs++;
             else { files++; total += (int)fs_table[i].size; }
         }
-        vga_print("Data: "); print_int(total); vga_print(" B in ");
-        print_int(files); vga_print(" files and "); print_int(dirs); vga_print(" directories\n");
+        print_ui("Data: ", "Daten: "); print_int(total); vga_print(" B in ");
+        print_int(files); print_ui(" files and ", " Dateien und ");
+        print_int(dirs); print_ui(" directories\n", " Verzeichnissen\n");
     }
     else if(strncmp(input_buf, "du ", 3) == 0) {
         char path[FS_NAME_LEN];
-        if(!resolve_fs_path(&input_buf[3], path)) vga_print("du: invalid path\n");
+        if(!resolve_fs_path(&input_buf[3], path)) print_ui("du: invalid path\n", "du: ungueltiger Pfad\n");
         else {
             int total = 0, files = 0;
             for(int i = 0; i < FS_MAX_FILES; i++) {
@@ -852,16 +1173,22 @@ void handle_command(void) {
                     total += (int)fs_table[i].size; files++;
                 }
             }
-            vga_print("Data: "); print_int(total); vga_print(" B in ");
-            print_int(files); vga_print(" files\n");
+            print_ui("Data: ", "Daten: "); print_int(total); vga_print(" B in ");
+            print_int(files); print_ui(" files\n", " Dateien\n");
         }
     }
     else if(strncmp(input_buf, "chmod ", 6) == 0)
-        vga_print("GoonerOS has no file permissions yet; everyone has full access\n");
-    else if(strncmp(input_buf, "type ", 5) == 0)
-        vga_print("built-in shell command\n");
+        print_ui("GoonerOS has no file permissions yet; everyone has full access\n",
+                 "GoonerOS hat noch keine Dateirechte; jeder hat vollen Zugriff\n");
+    else if(strncmp(input_buf, "type ", 5) == 0) {
+        const char* name = &input_buf[5];
+        vga_print(name);
+        if(shell_is_builtin(name)) print_ui(" is a shell builtin\n", " ist ein Shell-Builtin\n");
+        else print_ui(": not found\n", ": nicht gefunden\n");
+    }
     else if(strncmp(input_buf, "xxd ", 4) == 0) {
-        if(read_file_from_cwd(&input_buf[4], cmd_buf, sizeof(cmd_buf)) < 0) vga_print("File not found\n");
+        if(read_file_from_cwd(&input_buf[4], cmd_buf, sizeof(cmd_buf)) < 0)
+            print_ui("File not found\n", "Datei nicht gefunden\n");
         else {
             int len = strlen(cmd_buf);
             char hx[] = "0123456789abcdef";
@@ -874,7 +1201,8 @@ void handle_command(void) {
         }
     }
     else if(strncmp(input_buf, "sum ", 4) == 0) {
-        if(read_file_from_cwd(&input_buf[4], cmd_buf, sizeof(cmd_buf)) < 0) vga_print("File not found\n");
+        if(read_file_from_cwd(&input_buf[4], cmd_buf, sizeof(cmd_buf)) < 0)
+            print_ui("File not found\n", "Datei nicht gefunden\n");
         else {
             unsigned int s = 0;
             for(int i = 0; cmd_buf[i]; i++) s = s*31 + (unsigned char)cmd_buf[i];
@@ -913,11 +1241,17 @@ void handle_command(void) {
     else if(strncmp(input_buf, "grep ", 5) == 0) {
         char* sp = &input_buf[5];
         while(*sp && *sp != ' ') sp++;
-        if(!*sp) { vga_print("Usage: grep wort datei\n"); }
+        if(!*sp && !shell_stdin_data) {
+            shell_status = 1;
+            print_ui("Usage: grep PATTERN FILE\n", "Aufruf: grep MUSTER DATEI\n");
+        }
         else {
-            *sp = 0;
-            if(read_file_from_cwd(sp+1, cmd_buf, sizeof(cmd_buf)) < 0) vga_print("File not found\n");
-            else {
+            const char* source = 0;
+            if(*sp) { *sp = 0; source = sp+1; }
+            if(read_shell_input(source, cmd_buf, sizeof(cmd_buf)) < 0) {
+                shell_status = 1;
+                print_ui("File not found\n", "Datei nicht gefunden\n");
+            } else {
                 int start = 0, any = 0;
                 for(int i = 0; ; i++) {
                     if(cmd_buf[i] == '\n' || cmd_buf[i] == 0) {
@@ -928,13 +1262,19 @@ void handle_command(void) {
                         if(cmd_buf[i] == 0) break;
                     }
                 }
-                if(!any) vga_print("(no matches)\n");
+                if(!any) {
+                    shell_status = 1;
+                    print_ui("(no matches)\n", "(keine Treffer)\n");
+                }
             }
         }
     }
-    else if(strncmp(input_buf, "sort ", 5) == 0) {
-        if(read_file_from_cwd(&input_buf[5], cmd_buf, sizeof(cmd_buf)) < 0) vga_print("File not found\n");
-        else {
+    else if(strcmp(input_buf, "sort") == 0 || strncmp(input_buf, "sort ", 5) == 0) {
+        const char* source = input_buf[4] ? &input_buf[5] : 0;
+        if(read_shell_input(source, cmd_buf, sizeof(cmd_buf)) < 0) {
+            shell_status = 1;
+            print_ui("File not found\n", "Datei nicht gefunden\n");
+        } else {
             char* lines[40]; int n = 0, start = 0;
             int len = strlen(cmd_buf);
             for(int i = 0; i <= len && n < 40; i++) {
@@ -957,48 +1297,96 @@ void handle_command(void) {
     }
     else if(strncmp(input_buf, "tr ", 3) == 0) {
         char a = input_buf[3], b = input_buf[5];
-        char* text = &input_buf[7];
+        const char* text = shell_stdin_data ? shell_stdin_data : &input_buf[7];
         for(int i = 0; text[i]; i++) vga_putc(text[i] == a ? b : text[i]);
-        vga_putc('\n');
+        if(!shell_stdin_data) vga_putc('\n');
     }
-    else if(strncmp(input_buf, "which ", 6) == 0 || strncmp(input_buf, "whereis ", 8) == 0)
-        vga_print("built-in shell command\n");
+    else if(strncmp(input_buf, "which ", 6) == 0 || strncmp(input_buf, "whereis ", 8) == 0) {
+        const char* name = input_buf[2] == 'i' ? &input_buf[6] : &input_buf[8];
+        if(!*name) print_ui("Usage: which COMMAND\n", "Aufruf: which BEFEHL\n");
+        else {
+            vga_print(name);
+            if(shell_is_builtin(name)) print_ui(": shell builtin\n", ": Shell-Builtin\n");
+            else print_ui(": not found\n", ": nicht gefunden\n");
+        }
+    }
     else if(strcmp(input_buf, "id") == 0)
         vga_print("uid=0(root) gid=0(root)\n");
     else if(strcmp(input_buf, "groups") == 0)
         vga_print("root\n");
     else if(strcmp(input_buf, "arch") == 0)
         vga_print("i686\n");
-    else if(strcmp(input_buf, "dmesg") == 0) {
-        vga_print("[0.000] GoonerOS boot\n");
-        vga_print("[0.010] VESA Grafik initialisiert\n");
-        vga_print("[0.020] PS/2 Controller bereit\n");
-        vga_print("[0.030] ATA Festplatte erkannt\n");
-        vga_print("[0.040] filesystem loaded\n");
-    }
+    else if(strcmp(input_buf, "dmesg") == 0)
+        print_ui("No kernel message buffer is available yet\n",
+                 "Noch kein Kernel-Nachrichtenpuffer verfuegbar\n");
     else if(strcmp(input_buf, "vmstat") == 0) {
         vga_print("procs  mem\n");
         vga_print("   1   "); print_int(heap_ptr-HEAP_START); vga_print(" B belegt\n");
     }
     else if(strcmp(input_buf, "lsblk") == 0) {
-        vga_print("DEVICE       SIZE    TYPE\n");
-        vga_print("ata0         1 MiB   QEMU image (build configuration)\n");
-        vga_print("ata0-fs      256 KiB filesystem data capacity\n");
+        print_ui("DEVICE       SIZE    TYPE\n", "GERAET       GROESSE TYP\n");
+        print_ui("ata0         1 MiB   QEMU image (build configuration)\n",
+                 "ata0         1 MiB   QEMU-Abbild (Build-Konfiguration)\n");
+        print_ui("ata0-fs      256 KiB filesystem data capacity\n",
+                 "ata0-fs      256 KiB Dateisystem-Datenkapazitaet\n");
     }
     else if(strcmp(input_buf, "mount") == 0) {
-        vga_print("ata0-fs on / type goonerfs (hierarchical, fixed table)\n");
-        vga_print("Metadata: LBA 512-514; data begins at LBA 515\n");
+        print_ui("ata0-fs on / type goonerfs (hierarchical, fixed table)\n",
+                 "ata0-fs auf /, Typ goonerfs (hierarchisch, feste Tabelle)\n");
+        print_ui("Metadata: LBA 512-514; data begins at LBA 515\n",
+                 "Metadaten: LBA 512-514; Daten beginnen ab LBA 515\n");
     }
     else if(strcmp(input_buf, "nproc") == 0)
-        vga_print("CPU topology is not detected by this kernel\n");
+        print_ui("CPU topology is not detected by this kernel\n",
+                 "CPU-Topologie wird von diesem Kernel nicht erkannt\n");
     else if(strncmp(input_buf, "printf ", 7) == 0)
-        vga_print(&input_buf[7]);
+        shell_printf(&input_buf[7]);
+    else if(strcmp(input_buf, "printf") == 0)
+        print_ui("Usage: printf TEXT\n", "Aufruf: printf TEXT\n");
     else if(strcmp(input_buf, "true") == 0)
         {}
     else if(strcmp(input_buf, "false") == 0)
-        {}
+        shell_status = 1;
+    else if(strcmp(input_buf, "paging") == 0) {
+        if(paging_is_active()) {
+            print_ui("Paging: enabled, supervisor-only, null page unmapped\n",
+                     "Paging: aktiv, nur Supervisor, Nullseite nicht abgebildet\n");
+            print_ui("RAM: identity-mapped to 4 MiB; kernel text/rodata read-only; framebuffer mapped\n",
+                     "RAM: bis 4 MiB identisch abgebildet; Kernelcode/Read-only-Daten schreibgeschuetzt; Framebuffer abgebildet\n");
+        } else {
+            shell_status = 1;
+            print_ui("Paging is not active\n", "Paging ist nicht aktiv\n");
+        }
+    }
+    else if(strcmp(input_buf, "userdemo") == 0) {
+        print_ui("Starting two isolated ring-3 processes:\n",
+                 "Starte zwei isolierte Ring-3-Prozesse:\n");
+        for(int pid = 1; pid <= 2; pid++) {
+            int result = user_process_run(pid, 0);
+            if(result <= 0) {
+                shell_status = 1;
+                print_ui(result < 0 ? "User process hit a protection fault\n"
+                                    : "User process could not be started\n",
+                         result < 0 ? "User-Prozess stiess auf einen Zugriffsschutzfehler\n"
+                                    : "User-Prozess konnte nicht gestartet werden\n");
+                break;
+            }
+        }
+    }
+    else if(strcmp(input_buf, "userfault") == 0) {
+        print_ui("Testing user-mode memory isolation:\n",
+                 "Teste die Speicherschutzgrenze im Usermode:\n");
+        if(user_process_run(1, 1) < 0)
+            print_ui("User process stopped safely after a protected-memory fault\n",
+                     "User-Prozess nach Zugriffsschutzfehler sicher beendet\n");
+        else {
+            shell_status = 1;
+            print_ui("Expected user-mode page fault did not occur\n",
+                     "Erwarteter Usermode-Seitenfehler trat nicht auf\n");
+        }
+    }
     else if(strcmp(input_buf, "logout") == 0 || strcmp(input_buf, "halt") == 0 || strcmp(input_buf, "poweroff") == 0) {
-        vga_print("Shutting down...\n");
+        print_ui("Shutting down...\n", "System wird heruntergefahren...\n");
         outw(0x604, 0x2000);
         outw(0xB004, 0x2000);
         for(;;) asm volatile("hlt");
@@ -1021,27 +1409,30 @@ void handle_command(void) {
     else if(strncmp(input_buf, "diff ", 5) == 0) {
         char* sp = &input_buf[5];
         while(*sp && *sp != ' ') sp++;
-        if(!*sp) vga_print("Usage: diff datei1 datei2\n");
+        if(!*sp) print_ui("Usage: diff FILE1 FILE2\n", "Aufruf: diff DATEI1 DATEI2\n");
         else {
             *sp = 0;
             int r1 = read_file_from_cwd(&input_buf[5], cmd_buf, sizeof(cmd_buf));
             int r2 = read_file_from_cwd(sp+1, cmd_buf2, sizeof(cmd_buf2));
-            if(r1 < 0 || r2 < 0) vga_print("File not found\n");
-            else if(strcmp(cmd_buf, cmd_buf2) == 0) vga_print("Identisch\n");
-            else vga_print("Different\n");
+            if(r1 < 0 || r2 < 0) print_ui("File not found\n", "Datei nicht gefunden\n");
+            else if(strcmp(cmd_buf, cmd_buf2) == 0) print_ui("Identical\n", "Identisch\n");
+            else print_ui("Different\n", "Unterschiedlich\n");
         }
     }
     else if(strncmp(input_buf, "less ", 5) == 0 || strncmp(input_buf, "more ", 5) == 0) {
         char* name = &input_buf[5];
-        if(read_file_from_cwd(name, cmd_buf, sizeof(cmd_buf)) < 0) vga_print("File not found\n");
+        if(read_file_from_cwd(name, cmd_buf, sizeof(cmd_buf)) < 0)
+            print_ui("File not found\n", "Datei nicht gefunden\n");
         else { vga_print(cmd_buf); vga_putc('\n'); }
     }
     else if(strcmp(input_buf, "nano") == 0 || strcmp(input_buf, "vi") == 0 || strcmp(input_buf, "vim") == 0)
-        vga_print("Kein Texteditor vorhanden - nutze 'write name text'\n");
+        print_ui("No terminal editor is available; use 'write name text'\n",
+                 "Kein Terminal-Editor vorhanden - nutze 'write name text'\n");
     else if(strncmp(input_buf, "apt ", 4) == 0 || strncmp(input_buf, "pacman ", 7) == 0)
-        vga_print("Kein Paketmanager vorhanden\n");
+        print_ui("No package manager is available\n", "Kein Paketmanager vorhanden\n");
     else if(strcmp(input_buf, "battery") == 0)
-        vga_print("Kein Akku vorhanden (virtuelle Maschine)\n");
+        print_ui("No battery is available (virtual machine)\n",
+                 "Kein Akku vorhanden (virtuelle Maschine)\n");
     else if(strcmp(input_buf, "cls") == 0) {
         if(desktop_active) vga_clear_region(); else vga_clear();
     }
@@ -1051,14 +1442,17 @@ void handle_command(void) {
         while(*p == ' ') p++;
         char op = *p; p++;
         int b = parse_int(&p);
-        if(op == '+') { print_int(a+b); vga_putc('\n'); }
+        if(op != '+' && op != '-' && op != '*' && op != '/')
+            print_ui("Unknown operator (+ - * /)\n", "Unbekannter Operator (+ - * /)\n");
+        else if(op == '/' && b == 0)
+            print_ui("Division by zero\n", "Division durch 0\n");
+        else if(calc_overflow(a, b, op))
+            print_ui("Result exceeds the 32-bit integer range\n",
+                     "Ergebnis ausserhalb des 32-Bit-Ganzzahlbereichs\n");
+        else if(op == '+') { print_int(a+b); vga_putc('\n'); }
         else if(op == '-') { print_int(a-b); vga_putc('\n'); }
         else if(op == '*') { print_int(a*b); vga_putc('\n'); }
-        else if(op == '/') {
-            if(b != 0) { print_int(a/b); vga_putc('\n'); }
-            else vga_print("Division durch 0\n");
-        }
-        else vga_print("Unknown operator (+ - * /)\n");
+        else { print_int(a/b); vga_putc('\n'); }
     }
     else if(strcmp(input_buf, "logo") == 0)
         draw_arch_logo(900, 20, 330, 100, 0x1793D1);
@@ -1070,7 +1464,7 @@ void handle_command(void) {
         else vga_print("Root@GoonerOS\n");
     }
     else if(strcmp(input_buf, "exit") == 0) {
-        vga_print("Shutting down...\n");
+        print_ui("Shutting down...\n", "System wird heruntergefahren...\n");
         outw(0x604, 0x2000);  // ACPI-Shutdown, funktioniert bei den meisten QEMU Standardkonfigurationen
         outw(0xB004, 0x2000); // Fallback für manche QEMU-Versionen
         for(;;) asm volatile("hlt");
@@ -1078,19 +1472,18 @@ void handle_command(void) {
     else if(strcmp(input_buf, "time") == 0 || strcmp(input_buf, "date") == 0)
         print_time_date();
     else if(strcmp(input_buf, "reboot") == 0) {
-        vga_print("Rebooting...\n"); reboot();
+        print_ui("Rebooting...\n", "System wird neu gestartet...\n"); reboot();
     }
     else if(strcmp(input_buf, "meminfo") == 0) {
-        vga_print("Heap used: ");
-        char buf[16]; int n = heap_ptr - HEAP_START;
-        int i=0; if(n==0) buf[i++]='0'; while(n>0){buf[i++]='0'+n%10;n/=10;}
-        while(i--) {
-    vga_putc(buf[i]);
-}
-vga_print(" bytes\n");
+        print_ui("Heap used: ", "Heap belegt: ");
+        print_int((int)(heap_ptr - HEAP_START));
+        print_ui(" bytes\n", " Bytes\n");
+        print_ui("Free physical pages: ", "Freie physische Seiten: ");
+        print_int((int)page_free_count());
+        print_ui(" / 256 (4 KiB each)\n", " / 256 (je 4 KiB)\n");
     }
     else if(strcmp(input_buf, "beep") == 0) {
-        vga_print("Beep!\n"); beep();
+        print_ui("Beep!\n", "Piep!\n"); beep();
     }
     /* ====================  Befehle ==================== */
     else if(strncmp(input_buf, "seq ", 4) == 0) {
@@ -1204,56 +1597,57 @@ vga_print(" bytes\n");
     }
     else if(strncmp(input_buf, "man ", 4) == 0) {
         char* c = &input_buf[4];
-        if(strcmp(c, "ls") == 0) vga_print("ls [-a] [-l] [PATH] - -a shows hidden entries, -l shows details; combine as -la\n");
-        else if(strcmp(c, "loadkeys") == 0) vga_print("loadkeys de|en - select and save the German QWERTZ or English QWERTY layout\n");
-        else if(strcmp(c, "mkdir") == 0) vga_print("mkdir [-p] PATH - create a directory; -p also creates parent directories\n");
-        else if(strcmp(c, "rmdir") == 0) vga_print("rmdir PATH - remove an empty directory\n");
-        else if(strcmp(c, "cd") == 0) vga_print("cd [PATH] - change the working directory; cd .. moves up one level\n");
-        else if(strcmp(c, "pwd") == 0) vga_print("pwd - show the current working directory\n");
-        else if(strcmp(c, "rm") == 0) vga_print("rm FILE | rm -r DIRECTORY - remove a file or directory tree\n");
-        else if(strcmp(c, "help") == 0) vga_print("help - list available commands\n");
-        else if(strcmp(c, "countdown") == 0) vga_print("countdown N - count down from N; example: countdown 10\n");
-        else if(strcmp(c, "apt install") == 0) vga_print("apt install - unavailable: no package manager yet\nExample: apt install firefox\n");
-        else if(strcmp(c, "ping") == 0) vga_print("ping - unavailable: no network stack yet\nExample: ping example.com\n");
-        else if(strcmp(c, "window") == 0) vga_print("window - show a desktop window prototype\n");
-        else if(strcmp(c, "draw") == 0) vga_print("draw rectangle - draw a green rectangle at screen center\ndraw circle - draw a green circle at screen center\ndraw x y z - draw a rectangle at the given coordinates\n");
-        else if(strcmp(c, "stat") == 0) vga_print("stat PATH - show file details\nExample: stat test\n");
-        else if(strcmp(c, "wipe") == 0) vga_print("wipe - remove every file from the filesystem\n");
-        else if(strcmp(c, "tail") == 0) vga_print("tail FILE - show the last lines of a file\n");
-        else if(strcmp(c, "head") == 0) vga_print("head FILE - show the first lines of a file\n");
-        else if(strcmp(c, "du") == 0) vga_print("du - show the total file data size in bytes\n");
-        else if(strcmp(c, "cksum") == 0) vga_print("cksum FILE - calculate CRC-32/IEEE and file length\n");
-        else if(strcmp(c, "clean") == 0) vga_print("clean - clear the terminal; same as clear\n");
-        else if(strcmp(c, "spawn") == 0) vga_print("spawn counter | spawn checksum FILE - start cooperative background jobs\n");
-        else if(strcmp(c, "jobs") == 0) vga_print("jobs - show progress and results of cooperative tasks\n");
-        else if(strcmp(c, "sum") == 0) vga_print("sum - calculate a legacy 16-bit checksum\nLow reliability\n");
-        else if(strcmp(c, "touch") == 0) vga_print("touch FILE - create an empty file\n");
-        else if(strcmp(c, "cp") == 0) vga_print("cp SOURCE DESTINATION - copy a file\n");
-        else if(strcmp(c, "append") == 0) vga_print("append FILE TEXT - append text to a file\n");
-        else if(strcmp(c, "echo") == 0) vga_print("echo TEXT - print text\n");
-        else if(strcmp(c, "find") == 0) vga_print("find NAME - search the filesystem for names\n");
-        else if(strcmp(c, "search") == 0) vga_print("search TEXT - search file contents\n");
-        else if(strcmp(c, "tree") == 0) vga_print("tree [PATH] - show directories and files as a tree\n");
-        else if(strcmp(c, "wc") == 0) vga_print("wc FILE - count lines, words, and bytes in a file\n");
-        else if(strcmp(c, "seq") == 0) vga_print("seq N - count up to N\nLimit: 200\n");
-        else if(strcmp(c, "cat") == 0) vga_print("cat [-n] FILE - print a file; -n numbers lines\n");
-        else if(strcmp(c, "write") == 0) vga_print("write FILE TEXT - write TEXT to FILE\n");
-        else if(strcmp(c, "calc") == 0) vga_print("calc A OP B - Taschenrechner (+ - * /)\n");
-        else if(strcmp(c, "seq") == 0) vga_print("seq N - count from 1 to N\n");
-        else if(strcmp(c, "factor") == 0) vga_print("factor N - show the prime factorization of N\n");
-        else if(strcmp(c, "rand") == 0) vga_print("rand - generate a pseudo-random number\n");
-        else if(strcmp(c, "ida") == 0) vga_print("ida - draw a red heart that disappears after 10 seconds\n");
-        else if(strcmp(c, "fib") == 0) vga_print("fib N - calculate the Nth Fibonacci number\neach number is the sum of the previous two\n");
-        else if(strcmp(c, "genpass") == 0) vga_print("genpass - generate a pseudo-random password\n");
-        else if(strcmp(c, "factorial") == 0) vga_print("factorial N - calculate N factorial\nExample: factorial 5 = 5x4x3x2x1 = 120\n");
-        else if(strcmp(c, "lsblk") == 0) vga_print("lsblk - list block devices\n");
-        else if(strcmp(c, "sensors") == 0) vga_print("sensors - show available CPU temperature data\n");
-        else if(strcmp(c, "journalctl") == 0) vga_print("journalctl - show system logs and errors\n");
-        else if(strcmp(c, "mouse") == 0) vga_print("mouse - show the current mouse coordinates\n");
-        else if(strcmp(c, "banner") == 0) vga_print("banner TEXT - show large text in the center of the screen\n");
-        else if(strcmp(c, "sl") == 0) vga_print("sl - animate a train moving across the screen\n");
-        else if(strcmp(c, "cls") == 0) vga_print("cls - clear the screen, like clear\n");
-        else { vga_print("No manual entry for '"); vga_print(c); vga_print("'\n"); }
+        if(strcmp(c, "ls") == 0) print_ui("ls [-a] [-l] [PATH] - -a shows hidden entries, -l shows details; combine as -la\n", "ls [-a] [-l] [PFAD] - -a zeigt versteckte Eintraege, -l zeigt Details; kombinierbar als -la\n");
+        else if(strcmp(c, "loadkeys") == 0) print_ui("loadkeys de|en - select and save the German QWERTZ or English QWERTY layout\n", "loadkeys de|en - deutsches QWERTZ- oder englisches QWERTY-Layout waehlen und speichern\n");
+        else if(strcmp(c, "mkdir") == 0) print_ui("mkdir [-p] PATH - create a directory; -p also creates parent directories\n", "mkdir [-p] PFAD - Verzeichnis erstellen; -p erstellt auch Elternverzeichnisse\n");
+        else if(strcmp(c, "rmdir") == 0) print_ui("rmdir PATH - remove an empty directory\n", "rmdir PFAD - leeres Verzeichnis entfernen\n");
+        else if(strcmp(c, "cd") == 0) print_ui("cd [PATH] - change the working directory; cd .. moves up one level\n", "cd [PFAD] - Arbeitsverzeichnis wechseln; cd .. geht eine Ebene nach oben\n");
+        else if(strcmp(c, "pwd") == 0) print_ui("pwd - show the current working directory\n", "pwd - aktuelles Arbeitsverzeichnis anzeigen\n");
+        else if(strcmp(c, "rm") == 0) print_ui("rm FILE | rm -r DIRECTORY - remove a file or directory tree\n", "rm DATEI | rm -r VERZEICHNIS - Datei oder Verzeichnisbaum entfernen\n");
+        else if(strcmp(c, "help") == 0) print_ui("help - list available commands\n", "help - verfuegbare Befehle anzeigen\n");
+        else if(strcmp(c, "countdown") == 0) print_ui("countdown N - count down from N; example: countdown 10\n", "countdown N - von N herunterzaehlen; Beispiel: countdown 10\n");
+        else if(strcmp(c, "apt install") == 0) print_ui("apt install - unavailable: no package manager yet\nExample: apt install firefox\n", "apt install - nicht verfuegbar: noch kein Paketmanager\nBeispiel: apt install firefox\n");
+        else if(strcmp(c, "ping") == 0) print_ui("ping - unavailable: no network stack yet\nExample: ping example.com\n", "ping - nicht verfuegbar: noch kein Netzwerk-Stack\nBeispiel: ping example.com\n");
+        else if(strcmp(c, "window") == 0) print_ui("window - show a desktop window prototype\n", "window - Desktop-Fensterprototyp anzeigen\n");
+        else if(strcmp(c, "draw") == 0) print_ui("draw rectangle - draw a green rectangle at screen center\ndraw circle - draw a green circle at screen center\ndraw x y w h - draw a rectangle at the given coordinates\n", "draw rectangle - gruenes Rechteck in der Bildschirmmitte zeichnen\ndraw circle - gruenen Kreis in der Bildschirmmitte zeichnen\ndraw x y w h - Rechteck an den angegebenen Koordinaten zeichnen\n");
+        else if(strcmp(c, "stat") == 0) print_ui("stat PATH - show file details\nExample: stat test\n", "stat PFAD - Dateidetails anzeigen\nBeispiel: stat test\n");
+        else if(strcmp(c, "wipe") == 0) print_ui("wipe - remove every file from the filesystem\n", "wipe - alle Dateien im Dateisystem entfernen\n");
+        else if(strcmp(c, "tail") == 0) print_ui("tail [-n COUNT] FILE - show the last lines of a file\n", "tail [-n ANZAHL] DATEI - letzte Zeilen einer Datei anzeigen\n");
+        else if(strcmp(c, "head") == 0) print_ui("head [-n COUNT] FILE - show the first lines of a file\n", "head [-n ANZAHL] DATEI - erste Zeilen einer Datei anzeigen\n");
+        else if(strcmp(c, "basename") == 0) print_ui("basename PATH - show the final path component\n", "basename PFAD - letzten Pfadbestandteil anzeigen\n");
+        else if(strcmp(c, "dirname") == 0) print_ui("dirname PATH - show the parent path\n", "dirname PFAD - uebergeordneten Pfad anzeigen\n");
+        else if(strcmp(c, "du") == 0) print_ui("du [PATH] - show file data size in bytes\n", "du [PFAD] - Dateidaten-Groesse in Bytes anzeigen\n");
+        else if(strcmp(c, "cksum") == 0) print_ui("cksum FILE - calculate CRC-32/IEEE and file length\n", "cksum DATEI - CRC-32/IEEE und Dateilaenge berechnen\n");
+        else if(strcmp(c, "clean") == 0) print_ui("clean - clear the terminal; same as clear\n", "clean - Terminal leeren; gleichbedeutend mit clear\n");
+        else if(strcmp(c, "spawn") == 0) print_ui("spawn counter | spawn checksum FILE - start cooperative background jobs\n", "spawn counter | spawn checksum DATEI - kooperative Hintergrundaufgabe starten\n");
+        else if(strcmp(c, "jobs") == 0) print_ui("jobs - show progress and results of cooperative tasks\n", "jobs - Fortschritt und Ergebnisse kooperativer Aufgaben anzeigen\n");
+        else if(strcmp(c, "sum") == 0) print_ui("sum - calculate a legacy 16-bit checksum\nLow reliability\n", "sum - alte 16-Bit-Pruefsumme berechnen\nGeringe Zuverlaessigkeit\n");
+        else if(strcmp(c, "touch") == 0) print_ui("touch FILE - create an empty file\n", "touch DATEI - leere Datei erstellen\n");
+        else if(strcmp(c, "cp") == 0) print_ui("cp SOURCE DESTINATION - copy a file\n", "cp QUELLE ZIEL - Datei kopieren\n");
+        else if(strcmp(c, "append") == 0) print_ui("append FILE TEXT - append text to a file\n", "append DATEI TEXT - Text an eine Datei anhaengen\n");
+        else if(strcmp(c, "echo") == 0) print_ui("echo TEXT - print text\n", "echo TEXT - Text ausgeben\n");
+        else if(strcmp(c, "find") == 0) print_ui("find NAME - search the filesystem for names\n", "find NAME - Dateisystem nach Namen durchsuchen\n");
+        else if(strcmp(c, "search") == 0) print_ui("search TEXT - search file contents\n", "search TEXT - Dateiinhalte durchsuchen\n");
+        else if(strcmp(c, "tree") == 0) print_ui("tree [PATH] - show directories and files as a tree\n", "tree [PFAD] - Verzeichnisse und Dateien als Baum anzeigen\n");
+        else if(strcmp(c, "wc") == 0) print_ui("wc FILE - count lines, words, and bytes in a file\n", "wc DATEI - Zeilen, Woerter und Bytes einer Datei zaehlen\n");
+        else if(strcmp(c, "seq") == 0) print_ui("seq N - count from 1 to N\nLimit: 200\n", "seq N - von 1 bis N zaehlen\nLimit: 200\n");
+        else if(strcmp(c, "cat") == 0) print_ui("cat [-n] FILE - print a file; -n numbers lines\n", "cat [-n] DATEI - Datei ausgeben; -n nummeriert Zeilen\n");
+        else if(strcmp(c, "write") == 0) print_ui("write FILE TEXT - write TEXT to FILE\n", "write DATEI TEXT - TEXT in DATEI schreiben\n");
+        else if(strcmp(c, "calc") == 0) print_ui("calc A OP B - calculator (+ - * /)\n", "calc A OP B - Taschenrechner (+ - * /)\n");
+        else if(strcmp(c, "factor") == 0) print_ui("factor N - show the prime factorization of N\n", "factor N - Primfaktorzerlegung von N anzeigen\n");
+        else if(strcmp(c, "rand") == 0) print_ui("rand - generate a pseudo-random number\n", "rand - Pseudozufallszahl erzeugen\n");
+        else if(strcmp(c, "ida") == 0) print_ui("ida - draw a red heart that disappears after 10 seconds\n", "ida - rotes Herz zeichnen, das nach 10 Sekunden verschwindet\n");
+        else if(strcmp(c, "fib") == 0) print_ui("fib N - calculate the Nth Fibonacci number\neach number is the sum of the previous two\n", "fib N - N-te Fibonacci-Zahl berechnen\njede Zahl ist die Summe der beiden vorherigen\n");
+        else if(strcmp(c, "genpass") == 0) print_ui("genpass - generate a pseudo-random password\n", "genpass - Pseudozufallspasswort erzeugen\n");
+        else if(strcmp(c, "factorial") == 0) print_ui("factorial N - calculate N factorial\nExample: factorial 5 = 5x4x3x2x1 = 120\n", "factorial N - Fakultaet von N berechnen\nBeispiel: factorial 5 = 5x4x3x2x1 = 120\n");
+        else if(strcmp(c, "lsblk") == 0) print_ui("lsblk - list block devices\n", "lsblk - Blockgeraete auflisten\n");
+        else if(strcmp(c, "sensors") == 0) print_ui("sensors - show available CPU temperature data\n", "sensors - verfuegbare CPU-Temperaturdaten anzeigen\n");
+        else if(strcmp(c, "journalctl") == 0) print_ui("journalctl - show system logs and errors\n", "journalctl - Systemprotokolle und Fehler anzeigen\n");
+        else if(strcmp(c, "mouse") == 0) print_ui("mouse - show the current mouse coordinates\n", "mouse - aktuelle Mauskoordinaten anzeigen\n");
+        else if(strcmp(c, "banner") == 0) print_ui("banner TEXT - show large text in the center of the screen\n", "banner TEXT - grossen Text in der Bildschirmmitte anzeigen\n");
+        else if(strcmp(c, "sl") == 0) print_ui("sl - animate a train moving across the screen\n", "sl - Zug ueber den Bildschirm fahren lassen\n");
+        else if(strcmp(c, "cls") == 0) print_ui("cls - clear the screen, like clear\n", "cls - Bildschirm wie mit clear leeren\n");
+        else { print_ui("No manual entry for '", "Kein Handbucheintrag fuer '"); vga_print(c); vga_print("'\n"); }
     }
     else if(strcmp(input_buf, "who") == 0)
         vga_print("root     tty1         GoonerOS\n");
@@ -1266,8 +1660,9 @@ vga_print(" bytes\n");
             int i = 0; while(fs_cwd[i]) { path[i] = fs_cwd[i]; i++; } path[i] = 0;
         }
         struct fs_entry* root = path[0] ? fs_find(path) : 0;
-        if(!valid_path) vga_print("tree: invalid or overlong path\n");
-        else if(path[0] && !fs_is_directory(root)) vga_print("tree: directory not found\n");
+        if(!valid_path) print_ui("tree: invalid or overlong path\n", "tree: ungueltiger oder zu langer Pfad\n");
+        else if(path[0] && !fs_is_directory(root))
+            print_ui("tree: directory not found\n", "tree: Verzeichnis nicht gefunden\n");
         else {
             vga_print("/root");
             if(path[0]) { vga_putc('/'); vga_print(path); }
@@ -1295,7 +1690,7 @@ vga_print(" bytes\n");
     else if(strncmp(input_buf, "cksum ", 6) == 0) {
         char path[FS_NAME_LEN];
         int len = resolve_fs_path(&input_buf[6], path) ? fs_read(path, cmd_buf, sizeof(cmd_buf)) : -1;
-        if(len < 0) vga_print("cksum: file not found or unreadable\n");
+        if(len < 0) print_ui("cksum: file not found or unreadable\n", "cksum: Datei nicht gefunden oder unlesbar\n");
         else {
             unsigned int crc = 0xFFFFFFFFu;
             for(int i = 0; i < len; i++) {
@@ -1304,29 +1699,28 @@ vga_print(" bytes\n");
                     crc = (crc >> 1) ^ (0xEDB88320u & (0u - (crc & 1u)));
             }
             vga_print("CRC32 0x"); print_hex32(~crc); vga_print("  ");
-            print_int(len); vga_print(" bytes\n");
+            print_int(len); print_ui(" bytes\n", " Bytes\n");
         }
     }
     else if(strncmp(input_buf, "ping ", 5) == 0) {
-        vga_print("PING "); vga_print(&input_buf[5]); vga_print(": no network stack available\n");
+        vga_print("PING "); vga_print(&input_buf[5]);
+        print_ui(": no network stack available\n", ": kein Netzwerkprotokoll vorhanden\n");
     }
     else if(strcmp(input_buf, "ifconfig") == 0)
-        vga_print("lo: loopback; no physical network interface detected\n");
+        print_ui("No network driver or interface is available\n",
+                 "Kein Netzwerktreiber oder Netzwerkgeraet verfuegbar\n");
     else if(strcmp(input_buf, "sensors") == 0)
-        vga_print("CPU temperature: unavailable (no thermal sensor driver)\n");
-    else if(strncmp(input_buf, "systemctl", 9) == 0) {
-        vga_print("kernel.service   loaded active running GoonerOS Kernel\n");
-        vga_print("shell.service    loaded active running GoonerOS Shell\n");
-    }
+        print_ui("CPU temperature: unavailable (no thermal sensor driver)\n",
+                 "CPU-Temperatur: nicht verfuegbar (kein Temperatursensortreiber)\n");
+    else if(strcmp(input_buf, "systemctl") == 0 || strncmp(input_buf, "systemctl ", 10) == 0)
+        print_ui("No service manager is implemented\n", "Kein Dienstemanager implementiert\n");
     else if(strcmp(input_buf, "journalctl") == 0) {
-        vga_print("[boot] GoonerOS started\n");
-        vga_print("[ok] VESA Grafik initialisiert\n");
-        vga_print("[ok] PS/2 Controller bereit\n");
-        vga_print("[ok] ATA Festplatte erkannt\n");
-        vga_print("[ok] filesystem loaded\n");
+        print_ui("No persistent system journal is available yet\n",
+                 "Noch kein dauerhaftes Systemprotokoll verfuegbar\n");
     }
-    else if(strncmp(input_buf, "crontab", 7) == 0)
-        vga_print("Keine Cronjobs eingetragen\n");
+    else if(strcmp(input_buf, "crontab") == 0 || strncmp(input_buf, "crontab ", 8) == 0)
+        print_ui("No scheduler is available for cron jobs\n",
+                 "Kein Scheduler fuer Cronjobs implementiert\n");
 
     /* ==================== Optische Befehle ==================== */
     else if(strcmp(input_buf, "ida") == 0) {
@@ -1400,7 +1794,8 @@ vga_print(" bytes\n");
         clear_last_draw();
         draw_rect(gx-20, gy-20, len*char_w+40, 16*scale+40, 0x000000);
         remember_draw(gx-20, gy-20, len*char_w+40, 16*scale+40);
-        vga_print("Live clock for 60s (the shell is paused, then resumes)\n");
+        print_ui("Live clock for 60s (the shell is paused, then resumes)\n",
+                 "Live-Uhr fuer 60 s (die Shell pausiert und wird danach fortgesetzt)\n");
         char last_buf[9] = {0};
         for(int frame = 0; frame < 300; frame++) {
             unsigned char s,m,h,d,mo,y,s2,m2,h2,d2,mo2,y2;
@@ -1441,21 +1836,27 @@ vga_print(" bytes\n");
         else ok = 0;
         if(ok) {
             ui_theme_color = newc;
-            if(desktop_save_preferences()) vga_print("Theme changed and saved\n");
-            else vga_print("Theme changed, but settings could not be saved\n");
+            if(desktop_save_preferences())
+                print_ui("Theme changed and saved\n", "Design geaendert und gespeichert\n");
+            else print_ui("Theme changed, but settings could not be saved\n",
+                          "Design geaendert, Einstellungen konnten aber nicht gespeichert werden\n");
         }
-        else vga_print("Colors: cyan blue red green purple orange\n");
+        else print_ui("Colors: cyan blue red green purple orange\n",
+                      "Farben: tuerkis blau rot gruen lila orange\n");
     }
     else if(strcmp(input_buf, "window") == 0) {
         clear_last_draw();
         draw_window(300, 200, 400, 250, "Demo-Fenster");
         remember_draw(300, 200, 400, 250);
-        vga_print("Desktop window prototype (not movable yet)\n");
+        print_ui("Desktop window prototype (not movable yet)\n",
+                 "Desktop-Fensterprototyp (noch nicht verschiebbar)\n");
     }
     else if(strcmp(input_buf, "mouse") == 0) {
-        vga_print("X: "); print_int(mouse_get_x());
-        vga_print("  Y: "); print_int(mouse_get_y());
-        vga_print("  Left: "); vga_print(mouse_left_pressed() ? "pressed\n" : "released\n");
+        print_ui("X: ", "X: "); print_int(mouse_get_x());
+        print_ui("  Y: ", "  Y: "); print_int(mouse_get_y());
+        print_ui("  Left: ", "  Links: ");
+        print_ui(mouse_left_pressed() ? "pressed\n" : "released\n",
+                 mouse_left_pressed() ? "gedrueckt\n" : "losgelassen\n");
     }
 
     /* ==================== Weitere Befehle ==================== */
@@ -1466,7 +1867,7 @@ vga_print(" bytes\n");
             *sp = 0;
             char path[FS_NAME_LEN];
             if(!resolve_fs_path(&input_buf[7], path)) {
-                vga_print("append: invalid or overlong path\n");
+                print_ui("append: invalid or overlong path\n", "append: ungueltiger oder zu langer Pfad\n");
                 goto command_done;
             }
             int old_len = fs_read(path, cmd_buf, sizeof(cmd_buf));
@@ -1475,14 +1876,15 @@ vga_print(" bytes\n");
             int add_len = strlen(add);
             int total = old_len + add_len;
             if(total > FS_MAX_FILE_BYTES) {
-                vga_print("append: file would exceed the maximum file size\n");
+                print_ui("append: file would exceed the maximum file size\n",
+                         "append: Datei wuerde die maximale Groesse ueberschreiten\n");
                 goto command_done;
             }
             for(int i = 0; old_len+i < total; i++) cmd_buf[old_len+i] = add[i];
             cmd_buf[total] = 0;
             if(fs_write(path, cmd_buf, total)) vga_print("OK\n");
-            else vga_print("append: write failed\n");
-        } else vga_print("Usage: append datei text\n");
+            else print_ui("append: write failed\n", "append: Schreiben fehlgeschlagen\n");
+        } else print_ui("Usage: append FILE TEXT\n", "Aufruf: append DATEI TEXT\n");
     }
     else if(strncmp(input_buf, "search ", 7) == 0) {
         char* needle = &input_buf[7];
@@ -1493,17 +1895,17 @@ vga_print(" bytes\n");
             if(fs_read(fs_table[i].name, cmd_buf, sizeof(cmd_buf)) < 0) continue;
             if(my_strstr(cmd_buf, needle)) { vga_putc('/'); vga_print(fs_table[i].name); vga_putc('\n'); any = 1; }
         }
-        if(!any) vga_print("Nothing found\n");
+        if(!any) print_ui("Nothing found\n", "Nichts gefunden\n");
     }
     else if(strncmp(input_buf, "alarm ", 6) == 0) {
         char* p = &input_buf[6];
         int secs = parse_int(&p);
         if(secs < 0) secs = 0;
         if(secs > 30) secs = 30; // Sicherheitsbegrenzung, Shell ist blockiert
-        vga_print("Waiting "); print_int(secs); vga_print("s...\n");
+        print_ui("Waiting ", "Warte "); print_int(secs); vga_print("s...\n");
         for(int s = 0; s < secs; s++)
             pit_wait_ms(1000);
-        vga_print("Time's up!\n");
+        print_ui("Time's up!\n", "Zeit abgelaufen!\n");
         beep(); beep();
     }
     else if(strncmp(input_buf, "countdown ", 10) == 0) {
@@ -1529,7 +1931,7 @@ vga_print(" bytes\n");
         }
         draw_rect(gx-30, gy-20, char_w*2+60, 16*scale+40, 0x000000);
         last_draw_active = 0;
-        vga_print("Go!\n");
+        print_ui("Go!\n", "Los!\n");
         beep();
         redraw_text_buffer();
     }
@@ -1555,15 +1957,16 @@ vga_print(" bytes\n");
                 fs_table[i].reserved[j] = 0;
         }
         fs_cwd[0] = 0;
-        if(fs_save()) vga_print("Filesystem cleared\n");
-        else vga_print("Error: could not save the filesystem\n");
+        if(fs_save()) print_ui("Filesystem cleared\n", "Dateisystem geleert\n");
+        else print_ui("Error: could not save the filesystem\n",
+                      "Fehler: Dateisystem konnte nicht gespeichert werden\n");
     }
     else if(strcmp(input_buf, "desktop") == 0) {
         desktop_enter();
     }
     else if(strcmp(input_buf, "fullscreen") == 0) {
         if(desktop_active) desktop_fullscreen();
-        else vga_print("Schon im Vollbild\n");
+        else print_ui("Already in fullscreen mode\n", "Schon im Vollbild\n");
     }
     else if(strcmp(input_buf, "dih") == 0) {
         vga_print("          _____\n         /  |  |\n         (     )\n         |     |\n         |     |\n         |     |\n         |     |\n         |     |\n");
@@ -1571,10 +1974,11 @@ vga_print(" bytes\n");
         vga_print("     (      |      /\n      -____/|_____-\n");
     }
     else if(strcmp(input_buf,"man") == 0) {
-        vga_print("man - the manual\nUse 'man' followed by a command for usage information.\n");
+        print_ui("man - the manual\nUse 'man' followed by a command for usage information.\n",
+                 "man - das Handbuch\nNutze 'man' gefolgt von einem Befehl fuer Hinweise.\n");
     }
     else if(strcmp(input_buf, "fasfetch") == 0) {
-        vga_print("Try fastfetch or neofetch!\n");
+        print_ui("Try fastfetch or neofetch!\n", "Versuche fastfetch oder neofetch!\n");
     }
     /*else if(strcmp(input_buf, "test") == 0) {
         vga_print("hej\ntest\ntest\ntest\ntest\n");
@@ -1583,10 +1987,230 @@ vga_print(" bytes\n");
         vga_print("banane gegessen!");
     }*/
     else if(input_idx > 0) {
-        vga_print("Unknown command: ");
+        shell_status = 1;
+        print_ui("Unknown command: ", "Unbekannter Befehl: ");
         vga_print(input_buf); vga_putc('\n');
     }
 command_done:
+    return;
+}
+
+static void shell_trim_command(char* command) {
+    int start = 0, end = strlen(command);
+    while(command[start] == ' ') start++;
+    while(end > start && command[end-1] == ' ') end--;
+    int length = end - start;
+    for(int i = 0; i < length; i++) command[i] = command[start+i];
+    command[length] = 0;
+}
+
+static int shell_parse_line(const char* line, char stages[SHELL_PIPE_STAGES][64],
+                            char connectors[SHELL_PIPE_STAGES], int* stage_count,
+                            char* redirect_path, int* redirect_mode) {
+    int stage = 0, length = 0, target_length = 0;
+    char quote = 0;
+    *stage_count = 0;
+    *redirect_mode = 0;
+    redirect_path[0] = 0;
+    for(int i = 0; line[i]; i++) {
+        char c = line[i];
+        if(quote) {
+            if(c == quote) quote = 0;
+            else {
+                char* destination = *redirect_mode ? redirect_path : stages[stage];
+                int* used = *redirect_mode ? &target_length : &length;
+                if(*used >= 63) return 0;
+                destination[(*used)++] = c;
+                destination[*used] = 0;
+            }
+            continue;
+        }
+        if(c == '\'' || c == '"') {
+            quote = c;
+            continue;
+        }
+        if(c == '>' ) {
+            if(*redirect_mode || stage >= SHELL_PIPE_STAGES || length == 0) return 0;
+            *redirect_mode = line[i+1] == '>' ? 2 : 1;
+            if(*redirect_mode == 2) i++;
+            while(line[i+1] == ' ') i++;
+            for(i++; line[i]; i++) {
+                c = line[i];
+                if(c == '\'' || c == '"') {
+                    quote = c;
+                    while(line[i+1] && quote) {
+                        c = line[++i];
+                        if(c == quote) quote = 0;
+                        else {
+                            if(target_length >= 63) return 0;
+                            redirect_path[target_length++] = c;
+                        }
+                    }
+                    if(quote) return 0;
+                } else {
+                    if(c == '|' || c == '&' || c == '>') return 0;
+                    if(target_length >= 63) return 0;
+                    redirect_path[target_length++] = c;
+                }
+            }
+            redirect_path[target_length] = 0;
+            shell_trim_command(redirect_path);
+            if(!redirect_path[0]) return 0;
+            break;
+        }
+        if(c == '|' || (c == '&' && line[i+1] == '&')) {
+            if(length == 0 || stage >= SHELL_PIPE_STAGES-1 || *redirect_mode) return 0;
+            shell_trim_command(stages[stage]);
+            if(!stages[stage][0]) return 0;
+            connectors[stage] = c == '|' ? '|' : '&';
+            stage++;
+            stages[stage][0] = 0;
+            length = 0;
+            if(c == '&') i++;
+            while(line[i+1] == ' ') i++;
+            continue;
+        }
+        if(c == '&') return 0;
+        if(length >= 63) return 0;
+        stages[stage][length++] = c;
+        stages[stage][length] = 0;
+    }
+    if(quote) return 0;
+    if(length == 0) return 0;
+    shell_trim_command(stages[stage]);
+    if(!stages[stage][0]) return 0;
+    *stage_count = stage + 1;
+    return 1;
+}
+
+static int shell_pipeline_allowed(const char* command) {
+    static const char* allowed[] = {
+        "echo", "printf", "cat", "ls", "pwd", "grep", "sort", "wc", "head", "tail",
+        "basename", "dirname", "cksum", "xxd", "sum", "find", "du", "stat",
+        "rev", "tr", "seq", "calc", "date", "time", "uptime", "uname", "hostname",
+        "free", "arch", "id", "groups", "who", "ps", "jobs", "tree", "env", "history",
+        "lsblk", "mount", "nproc", "man", "version", "uniq"
+    };
+    char name[64];
+    int length = 0;
+    while(command[length] && command[length] != ' ') {
+        if(length >= 63) return 0;
+        name[length] = command[length];
+        length++;
+    }
+    name[length] = 0;
+    for(unsigned int i = 0; i < sizeof(allowed)/sizeof(allowed[0]); i++)
+        if(strcmp(name, allowed[i]) == 0) return 1;
+    return 0;
+}
+
+static int shell_reads_pipe(const char* command) {
+    int length = 0;
+    while(command[length] && command[length] != ' ') length++;
+    return (length == 3 && strncmp(command, "cat", 3) == 0) ||
+           (length == 4 && strncmp(command, "grep", 4) == 0) ||
+           (length == 4 && strncmp(command, "sort", 4) == 0) ||
+           (length == 2 && strncmp(command, "wc", 2) == 0) ||
+           (length == 4 && strncmp(command, "head", 4) == 0) ||
+           (length == 4 && strncmp(command, "tail", 4) == 0) ||
+           (length == 4 && strncmp(command, "uniq", 4) == 0) ||
+           (length == 2 && strncmp(command, "tr", 2) == 0);
+}
+
+static int shell_store_redirect(const char* path, int mode, const char* output, int output_length) {
+    char resolved[FS_NAME_LEN];
+    if(!resolve_fs_path(path, resolved) || !resolved[0]) return 0;
+    int existing_length = 0;
+    if(mode == 2) {
+        existing_length = fs_read(resolved, cmd_buf, sizeof(cmd_buf));
+        if(existing_length < 0) existing_length = 0;
+        if(existing_length + output_length > FS_MAX_FILE_BYTES) return 0;
+        for(int i = 0; i < output_length; i++) cmd_buf[existing_length+i] = output[i];
+        return fs_write(resolved, cmd_buf, existing_length + output_length);
+    }
+    return fs_write(resolved, output, output_length);
+}
+
+void handle_command(void) {
+    char stages[SHELL_PIPE_STAGES][64];
+    char connectors[SHELL_PIPE_STAGES];
+    char redirect_path[64];
+    int stage_count, redirect_mode;
+    stages[0][0] = 0;
+    input_buf[input_idx] = 0;
+    if(input_idx > 0) {
+        int n = input_idx < 63 ? input_idx : 63;
+        for(int i = 0; i < n; i++) cmd_history[cmd_history_count % 8][i] = input_buf[i];
+        cmd_history[cmd_history_count % 8][n] = 0;
+        cmd_history_count++;
+    }
+    int parse_ok = input_idx == 0 || shell_parse_line(input_buf, stages, connectors, &stage_count,
+                                                       redirect_path, &redirect_mode);
+    if(input_idx == 0) {
+        shell_status = 0;
+    } else if(!parse_ok) {
+        shell_status = 1;
+        print_ui("Shell syntax error or command too long\n",
+                 "Shell-Syntaxfehler oder Befehl zu lang\n");
+    } else {
+        int run_group = 1, group_status = 0, first = 0;
+        while(first < stage_count) {
+            int last = first;
+            while(last < stage_count-1 && connectors[last] == '|') last++;
+            if(run_group) {
+                shell_status = 0;
+                int constrained = last > first || (redirect_mode && last == stage_count-1);
+                for(int i = first; i <= last; i++) {
+                    if(constrained && (!shell_pipeline_allowed(stages[i]) ||
+                       (i > first && !shell_reads_pipe(stages[i])))) {
+                        shell_status = 1;
+                        print_ui("Command cannot be used in this pipeline\n",
+                                 "Befehl kann in dieser Pipe nicht verwendet werden\n");
+                        break;
+                    }
+                    int length = strlen(stages[i]);
+                    for(int j = 0; j <= length; j++) input_buf[j] = stages[i][j];
+                    input_idx = length;
+                    shell_stdin_data = i == first ? 0 : shell_pipe_buffer;
+                    int capture = i < last || (redirect_mode && last == stage_count-1 && i == last);
+                    if(capture) vga_capture_start(cmd_buf2, sizeof(cmd_buf2));
+                    shell_execute_simple();
+                    if(capture) {
+                        int captured = vga_capture_end();
+                        if(captured < 0) {
+                            shell_status = 1;
+                            print_ui("Command output exceeds the pipe buffer\n",
+                                     "Befehlsausgabe ist groesser als der Pipe-Puffer\n");
+                            break;
+                        }
+                        if(i < last) {
+                            for(int j = 0; j <= captured; j++) shell_pipe_buffer[j] = cmd_buf2[j];
+                        }
+                        if(i == last && redirect_mode) {
+                            if(!shell_store_redirect(redirect_path, redirect_mode,
+                                                     cmd_buf2, captured)) {
+                                shell_status = 1;
+                                print_ui("Redirection failed: invalid path, full disk, or write error\n",
+                                         "Umleitung fehlgeschlagen: Pfad ungueltig, Datentraeger voll oder Schreibfehler\n");
+                            }
+                        }
+                    }
+                }
+                group_status = shell_status;
+            }
+            if(last < stage_count-1 && connectors[last] == '&') {
+                run_group = group_status == 0;
+            }
+            first = last + 1;
+        }
+    }
+    shell_stdin_data = 0;
+    int region_x, region_y, region_w, region_h;
+    vga_get_region(&region_x, &region_y, &region_w, &region_h);
+    (void)region_y;
+    (void)region_w;
+    (void)region_h;
+    if(text_x != region_x) vga_putc('\n');
     input_idx = 0;
     cursor_col = 0;
     if(desktop_active && !desktop_terminal_focused()) return;

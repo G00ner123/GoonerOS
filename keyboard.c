@@ -7,6 +7,7 @@ static int num_lock = 1;
 static int caps_key_down = 0;
 static int num_key_down = 0;
 static int extended_prefix = 0;
+static int altgr_state = 0;
 static int keyboard_layout = KEYBOARD_LAYOUT_DE;
 static const char keyboard_layout_path[] = "goonkeys.cfg";
 static volatile unsigned char keyboard_queue[256];
@@ -15,6 +16,8 @@ static volatile unsigned char keyboard_tail = 0;
 static volatile int keyboard_overflow = 0;
 
 static unsigned char scancode_to_ascii(unsigned char sc, int shift) {
+    if(keyboard_layout == KEYBOARD_LAYOUT_DE && sc == 0x56)
+        return altgr_state ? '|' : shift ? '>' : '<';
     static const unsigned char de_lo[64] = {
         0, 0, '1','2','3','4','5','6','7','8','9','0', 223,180,'\b','\t',
         'q','w','e','r','t','z','u','i','o','p', 252,'+','\n',0,'a','s',
@@ -76,8 +79,19 @@ int keyboard_get_layout(void) {
 
 int keyboard_set_layout(int layout) {
     if(layout != KEYBOARD_LAYOUT_DE && layout != KEYBOARD_LAYOUT_EN) return 0;
+    if(keyboard_layout == layout) return 1;
     keyboard_layout = layout;
+    desktop_language_changed();
     return 1;
+}
+
+int keyboard_save_layout(void) {
+    char config[5] = {'1', ',', 'd', 'e', '\n'};
+    if(keyboard_layout == KEYBOARD_LAYOUT_EN) {
+        config[2] = 'e';
+        config[3] = 'n';
+    }
+    return fs_write(keyboard_layout_path, config, sizeof(config));
 }
 
 void keyboard_load_layout(void) {
@@ -119,7 +133,7 @@ void draw_cursor_bar(int on) {
     if(on) {
         draw_rect(cx, prompt_y+13, 8, 2, ui_theme_color);
     } else if(cursor_col < input_idx) {
-        draw_char(cx, prompt_y, input_buf[cursor_col], 0xFFFFFF, 0x000000);
+        draw_console_char(cx, prompt_y, input_buf[cursor_col], 0xFFFFFF, 0x000000);
     } else {
         draw_rect(cx, prompt_y+13, 8, 2, 0x000000);
     }
@@ -131,7 +145,7 @@ void redraw_input_line(void) {
     int x = prompt_x;
     int row = (prompt_y-oy)/16;
     for(int i = 0; i < input_idx; i++) {
-        draw_char(x, prompt_y, input_buf[i], 0xFFFFFF, 0x000000);
+        draw_console_char(x, prompt_y, input_buf[i], 0xFFFFFF, 0x000000);
         text_buffer_put(row, (x-ox)/8, input_buf[i]);
         x += 8;
     }
@@ -152,6 +166,8 @@ static void keyboard_process_scancode(unsigned char sc) {
 
     if(extended_prefix) {
         extended_prefix = 0;
+        if(sc == 0x38) { altgr_state = 1; return; }
+        if(sc == 0xB8) { altgr_state = 0; return; }
         if(focused && !(sc & 0x80)) {
             if(sc == 0x4B && cursor_col > 0) { // Pfeil links
                 draw_cursor_bar(0); cursor_col--; draw_cursor_bar(1);
@@ -247,9 +263,12 @@ void keyboard_poll(void) {
                 extended_prefix = 0;
                 caps_key_down = 0;
                 num_key_down = 0;
+                altgr_state = 0;
             }
             asm volatile("sti");
-            if(overflow) vga_print("\n[Warning: keyboard input dropped (buffer full)]\n");
+            if(overflow)
+                vga_print(ui_text("\n[Warning: keyboard input dropped (buffer full)]\n",
+                                  "\n[Warnung: Tastatureingabe verworfen (Puffer voll)]\n"));
             return;
         }
         sc = keyboard_queue[keyboard_tail];

@@ -56,6 +56,8 @@ def read_entries(image, super_lba, table_lba, data_start):
         is_directory = reserved[0] == DIRECTORY_MARK
         if start_lba < data_start or start_lba + FS_BLOCK_SECTORS > IMAGE_SECTORS:
             raise ValueError("Dateisystem verweist ausserhalb des Datentraegers.")
+        if (start_lba - data_start) % FS_BLOCK_SECTORS:
+            raise ValueError("Dateisystemblock ist nicht an einem gueltigen Blockanfang ausgerichtet.")
         if (is_directory and size != 0) or (not is_directory and size > FS_BLOCK_BYTES):
             raise ValueError("Dateisystemeintrag hat eine ungueltige Groesse.")
         entries.append(

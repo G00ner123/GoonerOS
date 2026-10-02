@@ -1,6 +1,7 @@
 [bits 32]
 
 global _start
+global stack_top
 extern kernel_main
 extern _bss_start
 extern _bss_end

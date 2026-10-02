@@ -1,0 +1,10 @@
+# Build-Artefakte
+*.o
+*.bin
+*.elf
+*.img
+
+# Editor/OS-Kram
+.directory
+*.swp
+*~

@@ -30,6 +30,6 @@
 <img width="1503" height="1125" alt="Bildschirmfoto_20260930_174151" src="https://github.com/user-attachments/assets/b5e6e63c-e7c6-44f0-be44-34947704d600" />
 <img width="1494" height="1119" alt="grafik" src="https://github.com/user-attachments/assets/4aa91436-fff5-4196-91f8-49dbf9a7125e" />
 
-<sub>*Please fork/change if you want but keep it open source*<sub>
+<sub>*Please fork and modify freely — but keep it under the GPL.*<sub>
 
 <sub>_used little bit of AI for Assembly code and design decisions_<sub>

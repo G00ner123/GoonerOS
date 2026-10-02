@@ -1,5 +1,5 @@
 # GoonerOS
- Hand made hobby OS. Experimental! Do not flash this on a Install medium etc. Test ONLY in a VM, such as QEMU. Due to Instability, Incompatibility and lack of
+ Hand made hobby OS. *Experimental*! Do not flash this on a Install medium etc. Test ONLY in a VM, such as QEMU. Due to Instability, Incompatibility and lack of
  Functions/Content. (If you ignore this warning and run it on real hardware anyway, that's on you, not me/Ich wiederhole: Nur in VM Testen und NICHT auf Echter hardware, das System ist Instabil, hat Wenig funktionen und mangelt an kompatiblität.) 
 
 # Needed/Requirements:
@@ -17,8 +17,8 @@
      qemu-system-x86
 
 # Makefile Commands:
-   "make run" compiles the code and starts qemu (if installed).
-   "make clean" deletes all *.o, *.bin and *.elf binary-files, so that you can compile it from zero again (does not delete the os.img file).
+   "*make run*" compiles the code and starts qemu (if installed).
+   "*make clean*" deletes all *.o, *.bin and *.elf binary-files, so that you can compile it from zero again (does not delete the os.img file).
 
  Comments in the code are written in German, can be ignored.
  (most of) OS and GUI is in English.
@@ -28,4 +28,7 @@
  
 <img width="1496" height="1124" alt="Bildschirmfoto_20260930_174352" src="https://github.com/user-attachments/assets/b6f55cb1-4ab6-4832-8f69-ca347e9fc943" />
 <img width="1503" height="1125" alt="Bildschirmfoto_20260930_174151" src="https://github.com/user-attachments/assets/b5e6e63c-e7c6-44f0-be44-34947704d600" />
-<img width="1496" height="1126" alt="Bildschirmfoto_20260930_174209" src="https://github.com/user-attachments/assets/85322f54-b135-4056-9f36-ce812f681281" />
+<img width="1494" height="1119" alt="grafik" src="https://github.com/user-attachments/assets/4aa91436-fff5-4196-91f8-49dbf9a7125e" />
+
+*Please fork/change if you want but keep it open source*
+_used little bit of AI for Assembly code and design decisions_

@@ -1,4 +1,4 @@
-# GoonerOS
+## GoonerOS
  Hand made hobby OS. *Experimental*! Do not flash this on a Install medium etc. Test ONLY in a VM, such as QEMU. Due to Instability, Incompatibility and lack of
  Functions/Content. (If you ignore this warning and run it on real hardware anyway, that's on you, not me/Ich wiederhole: Nur in VM Testen und NICHT auf Echter hardware, das System ist Instabil, hat Wenig funktionen und mangelt an kompatiblität.) 
 

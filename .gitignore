@@ -3,6 +3,8 @@
 *.bin
 *.elf
 *.img
+os.img
+.directory
 
 # Editor/OS-Kram
 .directory

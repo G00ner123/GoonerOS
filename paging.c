@@ -7,14 +7,8 @@
 #define PAGE_ADDRESS 0xFFFFF000u
 #define IDENTITY_TABLES (PAGING_IDENTITY_LIMIT / (PAGE_SIZE * 1024u))
 #define FRAMEBUFFER_TABLES 2u
-<<<<<<< HEAD
 #define USER_CODE_ADDRESS 0x40000000u
 #define USER_STACK_ADDRESS 0x40002000u
-=======
-#define USER_PROCESS_LIMIT 2u
-#define USER_CODE_ADDRESS 0x40000000u
-#define USER_STACK_ADDRESS 0x40001000u
->>>>>>> 409f10ca7eb9b89ecee2ad93002bb7b6b9e15e54
 
 extern char _kernel_text_start;
 extern char _kernel_ro_end;
@@ -103,11 +97,7 @@ int paging_create_user_space(unsigned int slot, unsigned int code_page, unsigned
         user_tables[slot][i] = 0;
     }
     user_tables[slot][0] = code_page | PAGE_PRESENT | PAGE_USER;
-<<<<<<< HEAD
     user_tables[slot][2] = stack_page | PAGE_PRESENT | PAGE_USER | PAGE_WRITABLE;
-=======
-    user_tables[slot][1] = stack_page | PAGE_PRESENT | PAGE_USER | PAGE_WRITABLE;
->>>>>>> 409f10ca7eb9b89ecee2ad93002bb7b6b9e15e54
     user_directories[slot][USER_CODE_ADDRESS >> 22] =
         (unsigned int)user_tables[slot] | PAGE_PRESENT | PAGE_USER | PAGE_WRITABLE;
     return 1;

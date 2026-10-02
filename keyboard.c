@@ -129,7 +129,6 @@ void ps2_init(void) {
 }
 
 void draw_cursor_bar(int on) {
-<<<<<<< HEAD
     int ox, oy, width, height;
     vga_get_region(&ox, &oy, &width, &height);
     (void)oy;
@@ -144,12 +143,6 @@ void draw_cursor_bar(int on) {
     if(on) {
         draw_rect(cx, prompt_y+13, 8, 2, ui_theme_color);
     } else if(cursor_col < input_idx && cursor_col >= first) {
-=======
-    int cx = prompt_x + cursor_col*8;
-    if(on) {
-        draw_rect(cx, prompt_y+13, 8, 2, ui_theme_color);
-    } else if(cursor_col < input_idx) {
->>>>>>> 409f10ca7eb9b89ecee2ad93002bb7b6b9e15e54
         draw_console_char(cx, prompt_y, input_buf[cursor_col], 0xFFFFFF, 0x000000);
     } else {
         draw_rect(cx, prompt_y+13, 8, 2, 0x000000);
@@ -159,7 +152,6 @@ void redraw_input_line(void) {
     int ox, oy, w, h;
     vga_get_region(&ox, &oy, &w, &h);
     draw_rect(prompt_x, prompt_y, ox+w - prompt_x, 16, 0x000000);
-<<<<<<< HEAD
     int row = (prompt_y-oy)/16;
     int first = 0;
     int capacity = (ox+w-prompt_x)/8;
@@ -187,19 +179,6 @@ void redraw_input_line(void) {
     int clear_from = (x-ox)/8;
     for(int col = clear_from; col < cols; col++) text_buffer_put(row, col, 0);
     text_x = x; text_y = prompt_y;
-=======
-    int x = prompt_x;
-    int row = (prompt_y-oy)/16;
-    for(int i = 0; i < input_idx; i++) {
-        draw_console_char(x, prompt_y, input_buf[i], 0xFFFFFF, 0x000000);
-        text_buffer_put(row, (x-ox)/8, input_buf[i]);
-        x += 8;
-    }
-    int cols = w / 8;
-    if(cols > TEXT_COLS) cols = TEXT_COLS;
-    for(int col = (x-ox)/8; col < cols; col++) text_buffer_put(row, col, 0);
-    text_x = prompt_x + input_idx*8; text_y = prompt_y;
->>>>>>> 409f10ca7eb9b89ecee2ad93002bb7b6b9e15e54
     blink_visible = 1;
     last_blink_tick = ticks;
     draw_cursor_bar(1);
@@ -213,18 +192,14 @@ static void keyboard_process_scancode(unsigned char sc) {
 
     if(extended_prefix) {
         extended_prefix = 0;
-<<<<<<< HEAD
         if(shell_menuconfig_active()) {
             if(focused && !(sc & 0x80)) shell_menuconfig_key(0x100 | sc);
             return;
         }
-=======
->>>>>>> 409f10ca7eb9b89ecee2ad93002bb7b6b9e15e54
         if(sc == 0x38) { altgr_state = 1; return; }
         if(sc == 0xB8) { altgr_state = 0; return; }
         if(focused && !(sc & 0x80)) {
             if(sc == 0x4B && cursor_col > 0) { // Pfeil links
-<<<<<<< HEAD
                 cursor_col--;
                 redraw_input_line();
             } else if(sc == 0x4D && cursor_col < input_idx) { // Pfeil rechts
@@ -234,13 +209,6 @@ static void keyboard_process_scancode(unsigned char sc) {
                 redraw_input_line();
             } else if(sc == 0x50 && shell_history_move(1)) {
                 redraw_input_line();
-=======
-                draw_cursor_bar(0); cursor_col--; draw_cursor_bar(1);
-                blink_visible = 1; last_blink_tick = ticks;
-            } else if(sc == 0x4D && cursor_col < input_idx) { // Pfeil rechts
-                draw_cursor_bar(0); cursor_col++; draw_cursor_bar(1);
-                blink_visible = 1; last_blink_tick = ticks;
->>>>>>> 409f10ca7eb9b89ecee2ad93002bb7b6b9e15e54
             }
         }
         return;
@@ -264,7 +232,6 @@ static void keyboard_process_scancode(unsigned char sc) {
         return;
     }
 
-<<<<<<< HEAD
     if(shell_menuconfig_active()) {
         if(focused) {
             if(sc == 0x1C) shell_menuconfig_key(13);
@@ -277,8 +244,6 @@ static void keyboard_process_scancode(unsigned char sc) {
         return;
     }
 
-=======
->>>>>>> 409f10ca7eb9b89ecee2ad93002bb7b6b9e15e54
     if(desktop_editor_active()) {
         if(sc == 0x1C) desktop_editor_key(0, 2);
         else if(sc == 0x0E) desktop_editor_key(0, 1);
@@ -294,7 +259,6 @@ static void keyboard_process_scancode(unsigned char sc) {
 
     if(sc == 0x1C) { // Enter
         draw_cursor_bar(0);
-<<<<<<< HEAD
         int region_x, region_y, region_w, region_h;
         vga_get_region(&region_x, &region_y, &region_w, &region_h);
         (void)region_w;
@@ -303,11 +267,6 @@ static void keyboard_process_scancode(unsigned char sc) {
         vga_putc('\n');
         handle_command();
         shell_history_move(0);
-=======
-        text_x = prompt_x + input_idx*8; text_y = prompt_y;
-        vga_putc('\n');
-        handle_command();
->>>>>>> 409f10ca7eb9b89ecee2ad93002bb7b6b9e15e54
         return;
     }
     if(sc == 0x0E) { // Backspace: löscht das Zeichen vor dem Cursor
@@ -315,10 +274,7 @@ static void keyboard_process_scancode(unsigned char sc) {
             for(int i = cursor_col-1; i < input_idx-1; i++) input_buf[i] = input_buf[i+1];
             input_idx--;
             cursor_col--;
-<<<<<<< HEAD
             shell_history_move(0);
-=======
->>>>>>> 409f10ca7eb9b89ecee2ad93002bb7b6b9e15e54
             redraw_input_line();
         }
         return;
@@ -326,19 +282,12 @@ static void keyboard_process_scancode(unsigned char sc) {
 
     unsigned char c = keypad_to_ascii(sc);
     if(!c) c = scancode_to_ascii(sc, shift_state != 0);
-<<<<<<< HEAD
     if(c && input_idx < SHELL_LINE_CAPACITY-1) {
-=======
-    if(c && input_idx < 63) {
->>>>>>> 409f10ca7eb9b89ecee2ad93002bb7b6b9e15e54
         for(int i = input_idx; i > cursor_col; i--) input_buf[i] = input_buf[i-1];
         input_buf[cursor_col] = c;
         input_idx++;
         cursor_col++;
-<<<<<<< HEAD
         shell_history_move(0);
-=======
->>>>>>> 409f10ca7eb9b89ecee2ad93002bb7b6b9e15e54
         redraw_input_line();
     }
 }

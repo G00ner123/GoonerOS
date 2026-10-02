@@ -1,7 +1,6 @@
 #include "kernel.h"
 
 #define USER_CODE_ADDRESS 0x40000000u
-<<<<<<< HEAD
 #define USER_STACK_ADDRESS 0x40002000u
 #define USER_PAGE_SIZE 4096u
 #define USER_KERNEL_STACK_SIZE 8192u
@@ -57,12 +56,6 @@ typedef struct {
     int pid;
     int status;
 } user_exit_record_t;
-=======
-#define USER_STACK_ADDRESS 0x40001000u
-#define USER_PAGE_SIZE 4096u
-#define USER_PROCESS_LIMIT 2u
-#define USER_KERNEL_STACK_SIZE 8192u
->>>>>>> 409f10ca7eb9b89ecee2ad93002bb7b6b9e15e54
 
 extern char _user_app_start;
 extern char _user_app_end;
@@ -73,7 +66,6 @@ extern volatile unsigned int user_faulted;
 
 static unsigned char user_kernel_stacks[USER_PROCESS_LIMIT][USER_KERNEL_STACK_SIZE]
     __attribute__((aligned(4096)));
-<<<<<<< HEAD
 static user_task_t user_tasks[USER_PROCESS_LIMIT];
 static int current_user_pid;
 static int current_user_slot = -1;
@@ -441,20 +433,6 @@ void user_process_reap_done(void) {
 
 int user_syscall_dispatch(unsigned int* registers) {
     if(!registers || (!user_process_active && !user_process_current_async())) return 1;
-=======
-static int current_user_pid;
-static int user_process_active;
-
-static int user_pointer_valid(unsigned int address, unsigned int length) {
-    if(address < USER_CODE_ADDRESS || address >= USER_STACK_ADDRESS + USER_PAGE_SIZE) return 0;
-    if(length > USER_STACK_ADDRESS + USER_PAGE_SIZE - address) return 0;
-    if(address < USER_STACK_ADDRESS && length > USER_STACK_ADDRESS - address) return 0;
-    return 1;
-}
-
-int user_syscall_dispatch(unsigned int* registers) {
-    if(!registers || !user_process_active) return 1;
->>>>>>> 409f10ca7eb9b89ecee2ad93002bb7b6b9e15e54
     unsigned int number = registers[7];
     if(number == 1) {
         unsigned int address = registers[4];
@@ -468,7 +446,6 @@ int user_syscall_dispatch(unsigned int* registers) {
         registers[7] = length;
         return 0;
     }
-<<<<<<< HEAD
     if(number == 2) {
         if(user_process_current_async()) {
             user_process_async_exit((int)registers[4]);
@@ -533,24 +510,14 @@ int user_syscall_dispatch(unsigned int* registers) {
             return 0;
         }
         registers[7] = 0xFFFFFFFFu;
-=======
-    if(number == 2) return 1;
-    if(number == 3) {
-        registers[7] = (unsigned int)current_user_pid;
->>>>>>> 409f10ca7eb9b89ecee2ad93002bb7b6b9e15e54
         return 0;
     }
     registers[7] = 0xFFFFFFFFu;
     return 0;
 }
 
-<<<<<<< HEAD
 int user_fault_dispatch(unsigned int error, unsigned int eip, unsigned int cs,
                         unsigned int address) {
-=======
-void user_fault_dispatch(unsigned int error, unsigned int eip, unsigned int cs,
-                         unsigned int address) {
->>>>>>> 409f10ca7eb9b89ecee2ad93002bb7b6b9e15e54
     if((cs & 3u) != 3u) {
         vga_print("Kernel exception: ");
         print_int((int)eip);
@@ -561,16 +528,12 @@ void user_fault_dispatch(unsigned int error, unsigned int eip, unsigned int cs,
         vga_putc('\n');
         for(;;) asm volatile("hlt");
     }
-<<<<<<< HEAD
     if(user_process_current_async()) {
         user_process_async_exit(128);
         return 2;
     }
     user_faulted = 1;
     return 1;
-=======
-    user_faulted = 1;
->>>>>>> 409f10ca7eb9b89ecee2ad93002bb7b6b9e15e54
 }
 
 int user_process_run(int pid, int test_fault) {
@@ -579,12 +542,8 @@ int user_process_run(int pid, int test_fault) {
     unsigned char* code_page;
     unsigned char* stack_page;
     if(pid < 1 || (unsigned int)pid > USER_PROCESS_LIMIT ||
-<<<<<<< HEAD
        app_length == 0 || app_length > USER_PAGE_SIZE ||
        user_process_active || user_process_task_count())
-=======
-       app_length == 0 || app_length > USER_PAGE_SIZE || user_process_active)
->>>>>>> 409f10ca7eb9b89ecee2ad93002bb7b6b9e15e54
         return 0;
     slot = (unsigned int)pid - 1u;
     code_page = (unsigned char*)page_alloc();

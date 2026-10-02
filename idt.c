@@ -50,16 +50,10 @@ void irq_ack(unsigned char irq) {
     if(irq >= 8) outb(0xA0, 0x20);
     outb(0x20, 0x20);
 }
-<<<<<<< HEAD
 unsigned int irq0_handler(unsigned int stack_pointer) {
     ticks++;
     irq_ack(0);
     return scheduler_timer_switch(stack_pointer);
-=======
-void irq0_handler(void) {
-    ticks++;
-    irq_ack(0);
->>>>>>> 409f10ca7eb9b89ecee2ad93002bb7b6b9e15e54
 }
 
 // Echte Wartefunktion, unabhaengig von Interrupts. Liest stattdessen den PIT-Zähler

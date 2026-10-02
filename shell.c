@@ -1,11 +1,7 @@
 #include "kernel.h"
 #include "io.h"
 
-<<<<<<< HEAD
 char input_buf[SHELL_LINE_CAPACITY];
-=======
-char input_buf[64];
->>>>>>> 409f10ca7eb9b89ecee2ad93002bb7b6b9e15e54
 int input_idx = 0;
 int cursor_col = 0;
 int prompt_x = 0, prompt_y = 0;
@@ -14,20 +10,14 @@ int blink_visible = 1;
 
 static char cmd_buf[FS_MAX_FILE_BYTES+1];
 static char cmd_buf2[FS_MAX_FILE_BYTES+1];
-<<<<<<< HEAD
 static char cmd_history[8][SHELL_LINE_CAPACITY];
 static int cmd_history_count = 0;
 static int history_position = -1;
 static char history_draft[SHELL_LINE_CAPACITY];
-=======
-static char cmd_history[8][64];
-static int cmd_history_count = 0;
->>>>>>> 409f10ca7eb9b89ecee2ad93002bb7b6b9e15e54
 static int last_draw_active = 0, last_draw_x, last_draw_y, last_draw_w, last_draw_h;
 static char fs_cwd[FS_NAME_LEN];
 static const char* shell_stdin_data;
 static int shell_status;
-<<<<<<< HEAD
 static int menuconfig_open;
 static int menuconfig_selected;
 static int menuconfig_expanded;
@@ -35,19 +25,12 @@ static int menuconfig_first;
 
 #define SHELL_PIPE_STAGES 8
 #define SHELL_STAGE_CAPACITY SHELL_LINE_CAPACITY
-=======
-
-#define SHELL_PIPE_STAGES 8
->>>>>>> 409f10ca7eb9b89ecee2ad93002bb7b6b9e15e54
 #define SHELL_CAPTURE_SIZE (FS_MAX_FILE_BYTES + 1)
 
 static char shell_pipe_buffer[SHELL_CAPTURE_SIZE];
 
-<<<<<<< HEAD
 static void menuconfig_render(void);
 
-=======
->>>>>>> 409f10ca7eb9b89ecee2ad93002bb7b6b9e15e54
 static void print_ui(const char* english, const char* german) {
     vga_print(ui_text(english, german));
 }
@@ -155,7 +138,6 @@ static void shell_prompt(void) {
     vga_print("] > ");
 }
 
-<<<<<<< HEAD
 static const char* menuconfig_names[][2] = {
     {"Boot handoff and protected-mode entry", "Boot-Uebergabe und Protected-Mode-Start"},
     {"GDT, code/data segments and TSS", "GDT, Code-/Datensegmente und TSS"},
@@ -404,8 +386,6 @@ int shell_history_move(int direction) {
     return 1;
 }
 
-=======
->>>>>>> 409f10ca7eb9b89ecee2ad93002bb7b6b9e15e54
 static int make_directories(const char* path) {
     if(!path[0]) return 1;
     char prefix[FS_NAME_LEN];
@@ -549,11 +529,7 @@ static void goonfetch(void) {
     print_int((int)(heap_ptr-HEAP_START)); vga_print(" B  ");
     print_ui("Jobs: ", "Aufgaben: "); print_int(scheduler_task_count());
     vga_putc('/'); print_int(SCHEDULER_MAX_TASKS);
-<<<<<<< HEAD
     print_ui(" preemptive kernel threads\n", " praemptive Kernel-Threads\n");
-=======
-    print_ui(" cooperative\n", " kooperativ\n");
->>>>>>> 409f10ca7eb9b89ecee2ad93002bb7b6b9e15e54
     vga_set_text_color(0xFFFFFF);
     vga_putc('\n');
 }
@@ -596,10 +572,7 @@ void reboot(void) {
 }
 
 void beep(void) {
-<<<<<<< HEAD
     if(!desktop_system_sounds_enabled()) return;
-=======
->>>>>>> 409f10ca7eb9b89ecee2ad93002bb7b6b9e15e54
     outb(0x61, inb(0x61)|3); // macht speaker und gate 2 an
     outb(0x43,0xB6);        // setzt PIT channel 2 auf wellen generator 
     outb(0x42,0xA9);        // setzt frequenz auf low
@@ -659,11 +632,7 @@ static int shell_is_builtin(const char* name) {
         "ping", "ifconfig", "sensors", "systemctl", "journalctl", "crontab", "ida", "fire",
         "snow", "clock", "theme", "window", "mouse", "append", "search", "alarm", "countdown",
         "genpass", "wipe", "desktop", "fullscreen", "dih", "fasfetch", "uniq", "paging",
-<<<<<<< HEAD
         "userdemo", "userfault", "make", "cut", "tee", "nl", "fold", "lspci", "exec"
-=======
-        "userdemo", "userfault"
->>>>>>> 409f10ca7eb9b89ecee2ad93002bb7b6b9e15e54
     };
     if(!name || !name[0]) return 0;
     for(unsigned int i = 0; i < sizeof(commands)/sizeof(commands[0]); i++)
@@ -674,7 +643,6 @@ static int shell_is_builtin(const char* name) {
 static void shell_execute_simple(void) {
     input_buf[input_idx] = 0;
     shell_status = 0;
-<<<<<<< HEAD
     if(strcmp(input_buf, "make menuconfig") == 0) {
         menuconfig_open = 1;
         menuconfig_selected = 0;
@@ -708,22 +676,6 @@ static void shell_execute_simple(void) {
                  "'man BEFEHL' zeigt die Nutzung. 'make menuconfig' listet Kernel-Faehigkeiten.\n");
         print_ui("Unavailable: network tools, chmod, package managers and terminal editors\n",
                  "Nicht verfuegbar: Netzwerktools, chmod, Paketmanager und Terminaleditoren\n");
-=======
-    if(strcmp(input_buf, "help") == 0) {
-        print_ui(
-            "Core tools: ls cd pwd tree find mkdir rmdir rm mv touch cat write append cp stat df du fsck grep sort uniq wc head tail basename dirname cksum xxd echo printf loadkeys date time uptime uname hostname calc userdemo userfault\n",
-            "Grundbefehle: ls cd pwd tree find mkdir rmdir rm mv touch cat write append cp stat df du fsck grep sort uniq wc head tail basename dirname cksum xxd echo printf loadkeys date time uptime uname hostname calc userdemo userfault\n");
-        print_ui(
-            "More: clear diff rev tr seq factor prime fib factorial base64 hex dec ascii chr man paging spawn kill ps jobs top env history cal free lscpu lsblk mount theme mouse fullscreen\n",
-            "Weitere: clear diff rev tr seq factor prime fib factorial base64 hex dec ascii chr man paging spawn kill ps jobs top env history cal free lscpu lsblk mount theme mouse fullscreen\n");
-        print_ui("Operators: COMMAND && COMMAND, COMMAND | FILTER, COMMAND > FILE, COMMAND >> FILE\n",
-                 "Operatoren: BEFEHL && BEFEHL, BEFEHL | FILTER, BEFEHL > DATEI, BEFEHL >> DATEI\n");
-        print_ui("Pipelines: cat, grep, sort, uniq, wc, head, tail, tr accept piped text\n",
-                 "Pipes: cat, grep, sort, uniq, wc, head, tail, tr verarbeiten Text aus einer Pipe\n");
-        print_ui(
-            "Not implemented: chmod, systemctl, apt, ping, ifconfig, sensors, journalctl, crontab, nano\n",
-            "Nicht implementiert: chmod, systemctl, apt, ping, ifconfig, sensors, journalctl, crontab, nano\n");
->>>>>>> 409f10ca7eb9b89ecee2ad93002bb7b6b9e15e54
     }
     else if(strncmp(input_buf, "ls", 2) == 0 && (input_buf[2] == 0 || input_buf[2] == ' ')) {
         char path[FS_NAME_LEN];
@@ -1134,7 +1086,6 @@ static void shell_execute_simple(void) {
             vga_putc(' '); print_int(pid);
             vga_print(type == SCHEDULER_TASK_CHECKSUM
                 ? ui_text("  checksum   ", "  Pruefsumme  ")
-<<<<<<< HEAD
                 : type == SCHEDULER_TASK_USER
                     ? ui_text("  user       ", "  User        ")
                 : ui_text("  counter    ", "  Zaehler     "));
@@ -1145,43 +1096,26 @@ static void shell_execute_simple(void) {
                     : state == SCHEDULER_STATE_WAITING
                         ? ui_text("waiting    ", "wartend     ")
                         : ui_text("runnable   ", "bereit      "));
-=======
-                : ui_text("  counter    ", "  Zaehler     "));
-            vga_print(state == SCHEDULER_STATE_DONE
-                ? ui_text("done       ", "fertig      ")
-                : ui_text("runnable   ", "bereit      "));
->>>>>>> 409f10ca7eb9b89ecee2ad93002bb7b6b9e15e54
             if(type == SCHEDULER_TASK_CHECKSUM) {
                 print_int((int)progress); vga_putc('/'); print_int((int)total);
                 if(state == SCHEDULER_STATE_DONE) {
                     vga_print("  CRC32=0x"); print_hex32(result);
                 }
-<<<<<<< HEAD
             } else if(type == SCHEDULER_TASK_USER) {
                 print_int((int)steps);
                 print_ui(" timer preemptions", " Timer-Praemtionen");
-=======
->>>>>>> 409f10ca7eb9b89ecee2ad93002bb7b6b9e15e54
             } else {
                 print_int((int)steps); print_ui(" steps", " Schritte");
             }
             vga_putc('\n');
         }
-<<<<<<< HEAD
         print_ui("Scheduled tasks: ", "Geplante Aufgaben: ");
         print_int(scheduler_task_count());
         vga_putc('\n');
-=======
-        print_ui("Cooperative tasks: ", "Kooperative Aufgaben: ");
-        print_int(scheduler_task_count());
-        print_ui(" (one bounded work-slice per event-loop turn)\n",
-                 " (ein begrenzter Arbeitsschritt pro Ereignisschleifen-Durchlauf)\n");
->>>>>>> 409f10ca7eb9b89ecee2ad93002bb7b6b9e15e54
     }
     else if(strcmp(input_buf, "spawn counter") == 0) {
         int pid = scheduler_spawn_counter();
         if(pid < 0) print_ui("spawn: task table is full\n", "spawn: Aufgabentabelle ist voll\n");
-<<<<<<< HEAD
         else { print_ui("Preemptive counter thread started, PID ", "Praemptiver Zaehler-Thread gestartet, PID "); print_int(pid); vga_putc('\n'); }
     }
     else if(strncmp(input_buf, "exec ", 5) == 0) {
@@ -1245,9 +1179,6 @@ static void shell_execute_simple(void) {
             print_int(pid);
             vga_putc('\n');
         }
-=======
-        else { print_ui("Cooperative counter started, PID ", "Kooperativer Zaehler gestartet, PID "); print_int(pid); vga_putc('\n'); }
->>>>>>> 409f10ca7eb9b89ecee2ad93002bb7b6b9e15e54
     }
     else if(strncmp(input_buf, "spawn checksum ", 15) == 0) {
         char path[FS_NAME_LEN];
@@ -1258,11 +1189,7 @@ static void shell_execute_simple(void) {
             int pid = scheduler_spawn_checksum(path);
             if(pid < 0) print_ui("spawn checksum: file unreadable, task table full, or CRC task already running\n",
                                  "spawn checksum: Datei unlesbar, Aufgabentabelle voll oder CRC-Aufgabe laeuft bereits\n");
-<<<<<<< HEAD
             else { print_ui("Preemptive CRC32 thread started, PID ", "Praemptiver CRC32-Thread gestartet, PID "); print_int(pid); vga_putc('\n'); }
-=======
-            else { print_ui("Cooperative CRC32 job started, PID ", "Kooperative CRC32-Aufgabe gestartet, PID "); print_int(pid); vga_putc('\n'); }
->>>>>>> 409f10ca7eb9b89ecee2ad93002bb7b6b9e15e54
         }
     }
     else if(strcmp(input_buf, "spawn checksum") == 0)
@@ -1287,7 +1214,6 @@ static void shell_execute_simple(void) {
     }
     else if(strcmp(input_buf, "cal") == 0) {
         unsigned char s,m,h,d,mo,y,s2,m2,h2,d2,mo2,y2;
-<<<<<<< HEAD
         int stable = 0;
         for(int attempt = 0; attempt < 8; attempt++) {
             read_rtc_raw(&h,&m,&s,&d,&mo,&y);
@@ -1303,10 +1229,6 @@ static void shell_execute_simple(void) {
                      "cal: RTC lieferte keinen stabilen Messwert\n");
             goto command_done;
         }
-=======
-        do { read_rtc_raw(&h,&m,&s,&d,&mo,&y); read_rtc_raw(&h2,&m2,&s2,&d2,&mo2,&y2); }
-        while(h!=h2||m!=m2||s!=s2||d!=d2||mo!=mo2||y!=y2);
->>>>>>> 409f10ca7eb9b89ecee2ad93002bb7b6b9e15e54
         if(!(cmos_read(0x0B) & 0x04)) { d = bcd_to_bin(d); mo = bcd_to_bin(mo); y = bcd_to_bin(y); }
         print_ui("Today: ", "Heute: "); print_int(d); vga_putc('/'); print_int(mo); vga_print("/20"); print_int(y); vga_putc('\n');
     }
@@ -1323,13 +1245,8 @@ static void shell_execute_simple(void) {
         print_ui("CONTEXT       STATE       DETAIL\n", "KONTEXT       STATUS      DETAIL\n");
         vga_print("kernel_main   "); print_ui("running     ", "aktiv       ");
         print_int(heap_ptr-HEAP_START); print_ui(" B heap\n", " B Heap\n");
-<<<<<<< HEAD
         print_ui("scheduled tasks runnable  ", "Geplante Aufgaben bereit  ");
         print_int(scheduler_task_count()); print_ui(" tasks, timer-driven\n", " Aufgaben, timergesteuert\n");
-=======
-        print_ui("cooperative   runnable    ", "kooperativ    bereit      ");
-        print_int(scheduler_task_count()); print_ui(" tasks, bounded slices\n", " Aufgaben, begrenzte Zeitscheiben\n");
->>>>>>> 409f10ca7eb9b89ecee2ad93002bb7b6b9e15e54
         print_ui("Uptime: ", "Laufzeit: "); print_int(ticks/1000); vga_print("s\n");
     }
     else if(strcmp(input_buf, "env") == 0) {
@@ -1490,7 +1407,6 @@ static void shell_execute_simple(void) {
             }
         }
     }
-<<<<<<< HEAD
     else if(strcmp(input_buf, "cut") == 0 || strncmp(input_buf, "cut ", 4) == 0) {
         char* cursor = &input_buf[3];
         int field = 0, invalid = 0;
@@ -1650,8 +1566,6 @@ static void shell_execute_simple(void) {
             }
         }
     }
-=======
->>>>>>> 409f10ca7eb9b89ecee2ad93002bb7b6b9e15e54
     else if(strncmp(input_buf, "touch ", 6) == 0) {
         char path[FS_NAME_LEN];
         if(!resolve_fs_path(&input_buf[6], path)) {
@@ -1895,7 +1809,6 @@ static void shell_execute_simple(void) {
             for(int i = 0; i < n; i++) { vga_print(lines[i]); vga_putc('\n'); }
         }
     }
-<<<<<<< HEAD
     else if(strcmp(input_buf, "rev") == 0 || strncmp(input_buf, "rev ", 4) == 0) {
         const char* source = strcmp(input_buf, "rev") == 0
             ? shell_stdin_data : &input_buf[4];
@@ -1915,12 +1828,6 @@ static void shell_execute_simple(void) {
             if(!shell_stdin_data && length > 0 && source[length-1] != '\n')
                 vga_putc('\n');
         }
-=======
-    else if(strncmp(input_buf, "rev ", 4) == 0) {
-        int len = strlen(&input_buf[4]);
-        for(int i = len-1; i >= 0; i--) vga_putc(input_buf[4+i]);
-        vga_putc('\n');
->>>>>>> 409f10ca7eb9b89ecee2ad93002bb7b6b9e15e54
     }
     else if(strncmp(input_buf, "tr ", 3) == 0) {
         char a = input_buf[3], b = input_buf[5];
@@ -1957,11 +1864,8 @@ static void shell_execute_simple(void) {
         print_ui("ata0-fs      256 KiB filesystem data capacity\n",
                  "ata0-fs      256 KiB Dateisystem-Datenkapazitaet\n");
     }
-<<<<<<< HEAD
     else if(strcmp(input_buf, "lspci") == 0)
         pci_list_devices();
-=======
->>>>>>> 409f10ca7eb9b89ecee2ad93002bb7b6b9e15e54
     else if(strcmp(input_buf, "mount") == 0) {
         print_ui("ata0-fs on / type goonerfs (hierarchical, fixed table)\n",
                  "ata0-fs auf /, Typ goonerfs (hierarchisch, feste Tabelle)\n");
@@ -2251,7 +2155,6 @@ static void shell_execute_simple(void) {
         else if(strcmp(c, "du") == 0) print_ui("du [PATH] - show file data size in bytes\n", "du [PFAD] - Dateidaten-Groesse in Bytes anzeigen\n");
         else if(strcmp(c, "cksum") == 0) print_ui("cksum FILE - calculate CRC-32/IEEE and file length\n", "cksum DATEI - CRC-32/IEEE und Dateilaenge berechnen\n");
         else if(strcmp(c, "clean") == 0) print_ui("clean - clear the terminal; same as clear\n", "clean - Terminal leeren; gleichbedeutend mit clear\n");
-<<<<<<< HEAD
         else if(strcmp(c, "spawn") == 0) print_ui("spawn counter | spawn checksum FILE | spawn userloop - start scheduled tasks\n", "spawn counter | spawn checksum DATEI | spawn userloop - geplante Aufgaben starten\n");
         else if(strcmp(c, "exec") == 0) print_ui("exec ELF32_FILE - validate and start a static ELF32 executable from the filesystem\n", "exec ELF32_DATEI - statisches ELF32-Programm aus dem Dateisystem pruefen und starten\n");
         else if(strcmp(c, "syscalls") == 0) {
@@ -2263,10 +2166,6 @@ static void shell_execute_simple(void) {
                      "Rueckgaben stehen in EAX; sleep und wait benoetigen einen asynchronen Prozess.\n");
         }
         else if(strcmp(c, "jobs") == 0) print_ui("jobs - show preemptive kernel-thread progress and results\n", "jobs - Fortschritt und Ergebnisse praemptiver Kernel-Threads anzeigen\n");
-=======
-        else if(strcmp(c, "spawn") == 0) print_ui("spawn counter | spawn checksum FILE - start cooperative background jobs\n", "spawn counter | spawn checksum DATEI - kooperative Hintergrundaufgabe starten\n");
-        else if(strcmp(c, "jobs") == 0) print_ui("jobs - show progress and results of cooperative tasks\n", "jobs - Fortschritt und Ergebnisse kooperativer Aufgaben anzeigen\n");
->>>>>>> 409f10ca7eb9b89ecee2ad93002bb7b6b9e15e54
         else if(strcmp(c, "sum") == 0) print_ui("sum - calculate a legacy 16-bit checksum\nLow reliability\n", "sum - alte 16-Bit-Pruefsumme berechnen\nGeringe Zuverlaessigkeit\n");
         else if(strcmp(c, "touch") == 0) print_ui("touch FILE - create an empty file\n", "touch DATEI - leere Datei erstellen\n");
         else if(strcmp(c, "cp") == 0) print_ui("cp SOURCE DESTINATION - copy a file\n", "cp QUELLE ZIEL - Datei kopieren\n");
@@ -2276,14 +2175,11 @@ static void shell_execute_simple(void) {
         else if(strcmp(c, "search") == 0) print_ui("search TEXT - search file contents\n", "search TEXT - Dateiinhalte durchsuchen\n");
         else if(strcmp(c, "tree") == 0) print_ui("tree [PATH] - show directories and files as a tree\n", "tree [PFAD] - Verzeichnisse und Dateien als Baum anzeigen\n");
         else if(strcmp(c, "wc") == 0) print_ui("wc FILE - count lines, words, and bytes in a file\n", "wc DATEI - Zeilen, Woerter und Bytes einer Datei zaehlen\n");
-<<<<<<< HEAD
         else if(strcmp(c, "cut") == 0) print_ui("cut -f FIELD [-d CHAR] [FILE] - print a delimited field; default delimiter is TAB\n", "cut -f FELD [-d ZEICHEN] [DATEI] - getrenntes Feld ausgeben; Standardtrenner ist TAB\n");
         else if(strcmp(c, "tee") == 0) print_ui("COMMAND | tee [-a] FILE - copy piped text to the terminal and a file\n", "BEFEHL | tee [-a] DATEI - Pipe-Text ins Terminal und in eine Datei kopieren\n");
         else if(strcmp(c, "nl") == 0) print_ui("nl [FILE] - number input lines; accepts piped text\n", "nl [DATEI] - Eingabezeilen nummerieren; verarbeitet Pipe-Text\n");
         else if(strcmp(c, "fold") == 0) print_ui("fold [-w WIDTH] [FILE] - wrap long input lines at WIDTH columns\n", "fold [-w BREITE] [DATEI] - lange Eingabezeilen bei BREITE Spalten umbrechen\n");
         else if(strcmp(c, "make") == 0) print_ui("make menuconfig - inspect kernel capabilities; this prebuilt image cannot rebuild itself\n", "make menuconfig - Kernel-Faehigkeiten ansehen; dieses Image kann sich nicht selbst neu bauen\n");
-=======
->>>>>>> 409f10ca7eb9b89ecee2ad93002bb7b6b9e15e54
         else if(strcmp(c, "seq") == 0) print_ui("seq N - count from 1 to N\nLimit: 200\n", "seq N - von 1 bis N zaehlen\nLimit: 200\n");
         else if(strcmp(c, "cat") == 0) print_ui("cat [-n] FILE - print a file; -n numbers lines\n", "cat [-n] DATEI - Datei ausgeben; -n nummeriert Zeilen\n");
         else if(strcmp(c, "write") == 0) print_ui("write FILE TEXT - write TEXT to FILE\n", "write DATEI TEXT - TEXT in DATEI schreiben\n");
@@ -2295,10 +2191,7 @@ static void shell_execute_simple(void) {
         else if(strcmp(c, "genpass") == 0) print_ui("genpass - generate a pseudo-random password\n", "genpass - Pseudozufallspasswort erzeugen\n");
         else if(strcmp(c, "factorial") == 0) print_ui("factorial N - calculate N factorial\nExample: factorial 5 = 5x4x3x2x1 = 120\n", "factorial N - Fakultaet von N berechnen\nBeispiel: factorial 5 = 5x4x3x2x1 = 120\n");
         else if(strcmp(c, "lsblk") == 0) print_ui("lsblk - list block devices\n", "lsblk - Blockgeraete auflisten\n");
-<<<<<<< HEAD
         else if(strcmp(c, "lspci") == 0) print_ui("lspci - scan PCI configuration space and list device IDs and classes\n", "lspci - PCI-Konfigurationsraum durchsuchen und Geraete-IDs sowie Klassen anzeigen\n");
-=======
->>>>>>> 409f10ca7eb9b89ecee2ad93002bb7b6b9e15e54
         else if(strcmp(c, "sensors") == 0) print_ui("sensors - show available CPU temperature data\n", "sensors - verfuegbare CPU-Temperaturdaten anzeigen\n");
         else if(strcmp(c, "journalctl") == 0) print_ui("journalctl - show system logs and errors\n", "journalctl - Systemprotokolle und Fehler anzeigen\n");
         else if(strcmp(c, "mouse") == 0) print_ui("mouse - show the current mouse coordinates\n", "mouse - aktuelle Mauskoordinaten anzeigen\n");
@@ -2662,11 +2555,7 @@ static void shell_trim_command(char* command) {
     command[length] = 0;
 }
 
-<<<<<<< HEAD
 static int shell_parse_line(const char* line, char stages[SHELL_PIPE_STAGES][SHELL_STAGE_CAPACITY],
-=======
-static int shell_parse_line(const char* line, char stages[SHELL_PIPE_STAGES][64],
->>>>>>> 409f10ca7eb9b89ecee2ad93002bb7b6b9e15e54
                             char connectors[SHELL_PIPE_STAGES], int* stage_count,
                             char* redirect_path, int* redirect_mode) {
     int stage = 0, length = 0, target_length = 0;
@@ -2681,11 +2570,7 @@ static int shell_parse_line(const char* line, char stages[SHELL_PIPE_STAGES][64]
             else {
                 char* destination = *redirect_mode ? redirect_path : stages[stage];
                 int* used = *redirect_mode ? &target_length : &length;
-<<<<<<< HEAD
                 if(*used >= SHELL_STAGE_CAPACITY-1) return 0;
-=======
-                if(*used >= 63) return 0;
->>>>>>> 409f10ca7eb9b89ecee2ad93002bb7b6b9e15e54
                 destination[(*used)++] = c;
                 destination[*used] = 0;
             }
@@ -2708,22 +2593,14 @@ static int shell_parse_line(const char* line, char stages[SHELL_PIPE_STAGES][64]
                         c = line[++i];
                         if(c == quote) quote = 0;
                         else {
-<<<<<<< HEAD
                             if(target_length >= SHELL_STAGE_CAPACITY-1) return 0;
-=======
-                            if(target_length >= 63) return 0;
->>>>>>> 409f10ca7eb9b89ecee2ad93002bb7b6b9e15e54
                             redirect_path[target_length++] = c;
                         }
                     }
                     if(quote) return 0;
                 } else {
                     if(c == '|' || c == '&' || c == '>') return 0;
-<<<<<<< HEAD
                     if(target_length >= SHELL_STAGE_CAPACITY-1) return 0;
-=======
-                    if(target_length >= 63) return 0;
->>>>>>> 409f10ca7eb9b89ecee2ad93002bb7b6b9e15e54
                     redirect_path[target_length++] = c;
                 }
             }
@@ -2745,11 +2622,7 @@ static int shell_parse_line(const char* line, char stages[SHELL_PIPE_STAGES][64]
             continue;
         }
         if(c == '&') return 0;
-<<<<<<< HEAD
         if(length >= SHELL_STAGE_CAPACITY-1) return 0;
-=======
-        if(length >= 63) return 0;
->>>>>>> 409f10ca7eb9b89ecee2ad93002bb7b6b9e15e54
         stages[stage][length++] = c;
         stages[stage][length] = 0;
     }
@@ -2767,11 +2640,7 @@ static int shell_pipeline_allowed(const char* command) {
         "basename", "dirname", "cksum", "xxd", "sum", "find", "du", "stat",
         "rev", "tr", "seq", "calc", "date", "time", "uptime", "uname", "hostname",
         "free", "arch", "id", "groups", "who", "ps", "jobs", "tree", "env", "history",
-<<<<<<< HEAD
         "lsblk", "mount", "nproc", "man", "version", "uniq", "cut", "tee", "nl", "fold", "lspci"
-=======
-        "lsblk", "mount", "nproc", "man", "version", "uniq"
->>>>>>> 409f10ca7eb9b89ecee2ad93002bb7b6b9e15e54
     };
     char name[64];
     int length = 0;
@@ -2796,16 +2665,12 @@ static int shell_reads_pipe(const char* command) {
            (length == 4 && strncmp(command, "head", 4) == 0) ||
            (length == 4 && strncmp(command, "tail", 4) == 0) ||
            (length == 4 && strncmp(command, "uniq", 4) == 0) ||
-<<<<<<< HEAD
            (length == 2 && strncmp(command, "tr", 2) == 0) ||
            (length == 3 && strncmp(command, "cut", 3) == 0) ||
            (length == 3 && strncmp(command, "tee", 3) == 0) ||
            (length == 3 && strncmp(command, "rev", 3) == 0) ||
            (length == 2 && strncmp(command, "nl", 2) == 0) ||
            (length == 4 && strncmp(command, "fold", 4) == 0);
-=======
-           (length == 2 && strncmp(command, "tr", 2) == 0);
->>>>>>> 409f10ca7eb9b89ecee2ad93002bb7b6b9e15e54
 }
 
 static int shell_store_redirect(const char* path, int mode, const char* output, int output_length) {
@@ -2823,24 +2688,14 @@ static int shell_store_redirect(const char* path, int mode, const char* output, 
 }
 
 void handle_command(void) {
-<<<<<<< HEAD
     char stages[SHELL_PIPE_STAGES][SHELL_STAGE_CAPACITY];
     char connectors[SHELL_PIPE_STAGES];
     char redirect_path[SHELL_STAGE_CAPACITY];
-=======
-    char stages[SHELL_PIPE_STAGES][64];
-    char connectors[SHELL_PIPE_STAGES];
-    char redirect_path[64];
->>>>>>> 409f10ca7eb9b89ecee2ad93002bb7b6b9e15e54
     int stage_count, redirect_mode;
     stages[0][0] = 0;
     input_buf[input_idx] = 0;
     if(input_idx > 0) {
-<<<<<<< HEAD
         int n = input_idx < SHELL_LINE_CAPACITY-1 ? input_idx : SHELL_LINE_CAPACITY-1;
-=======
-        int n = input_idx < 63 ? input_idx : 63;
->>>>>>> 409f10ca7eb9b89ecee2ad93002bb7b6b9e15e54
         for(int i = 0; i < n; i++) cmd_history[cmd_history_count % 8][i] = input_buf[i];
         cmd_history[cmd_history_count % 8][n] = 0;
         cmd_history_count++;
@@ -2906,14 +2761,11 @@ void handle_command(void) {
         }
     }
     shell_stdin_data = 0;
-<<<<<<< HEAD
     if(menuconfig_open) {
         input_idx = 0;
         cursor_col = 0;
         return;
     }
-=======
->>>>>>> 409f10ca7eb9b89ecee2ad93002bb7b6b9e15e54
     int region_x, region_y, region_w, region_h;
     vga_get_region(&region_x, &region_y, &region_w, &region_h);
     (void)region_y;

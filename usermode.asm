@@ -7,10 +7,7 @@ global user_faulted
 extern user_syscall_dispatch
 extern user_fault_dispatch
 extern paging_activate_kernel_space
-<<<<<<< HEAD
 extern scheduler_timer_switch
-=======
->>>>>>> 409f10ca7eb9b89ecee2ad93002bb7b6b9e15e54
 
 gdt_flush:
     mov eax, [esp + 4]
@@ -58,7 +55,6 @@ user_syscall:
     push esp
     call user_syscall_dispatch
     add esp, 4
-<<<<<<< HEAD
     cmp eax, 2
     je .async_exit
     test eax, eax
@@ -73,12 +69,6 @@ user_syscall:
     add esp, 4
     mov esp, eax
     jmp user_interrupt_return
-=======
-    test eax, eax
-    jnz user_return_to_kernel
-    popa
-    iretd
->>>>>>> 409f10ca7eb9b89ecee2ad93002bb7b6b9e15e54
 
 user_page_fault:
     pusha
@@ -123,31 +113,22 @@ user_return_to_kernel:
     mov eax, 1
     ret
 
-<<<<<<< HEAD
 user_interrupt_return:
     popa
     add esp, 8
     sti
     iretd
 
-=======
->>>>>>> 409f10ca7eb9b89ecee2ad93002bb7b6b9e15e54
 global isr_syscall
 global isr_user_page_fault
 global isr_user_general_protection
 global user_exception_return
-<<<<<<< HEAD
 global user_interrupt_return
 
 isr_syscall:
     cli
     push dword 0
     push dword 128
-=======
-
-isr_syscall:
-    cli
->>>>>>> 409f10ca7eb9b89ecee2ad93002bb7b6b9e15e54
     jmp user_syscall
 
 isr_user_page_fault:

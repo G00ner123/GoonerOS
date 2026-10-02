@@ -15,12 +15,8 @@ static int cmos_update_in_progress(void) {
 }
 void read_rtc_raw(unsigned char* h, unsigned char* m, unsigned char* s,
                           unsigned char* d, unsigned char* mo, unsigned char* y) {
-<<<<<<< HEAD
     unsigned int timeout = 100000;
     while(cmos_update_in_progress() && timeout) timeout--;
-=======
-    while(cmos_update_in_progress());
->>>>>>> 409f10ca7eb9b89ecee2ad93002bb7b6b9e15e54
     *s = cmos_read(0x00);
     *m = cmos_read(0x02);
     *h = cmos_read(0x04);
@@ -32,7 +28,6 @@ void print_time_date(void) {
     unsigned char s,m,h,d,mo,y, s2,m2,h2,d2,mo2,y2;
 
     // Zweimal lesen und vergleichen falls Uhr während des Auslesens weiterspringt
-<<<<<<< HEAD
     int stable = 0;
     for(int attempt = 0; attempt < 8; attempt++) {
         read_rtc_raw(&h,&m,&s,&d,&mo,&y);
@@ -46,12 +41,6 @@ void print_time_date(void) {
         h = h2; m = m2; s = s2;
         d = d2; mo = mo2; y = y2;
     }
-=======
-    do {
-        read_rtc_raw(&h,&m,&s,&d,&mo,&y);
-        read_rtc_raw(&h2,&m2,&s2,&d2,&mo2,&y2);
-    } while(h!=h2 || m!=m2 || s!=s2 || d!=d2 || mo!=mo2 || y!=y2);
->>>>>>> 409f10ca7eb9b89ecee2ad93002bb7b6b9e15e54
 
     unsigned char regB = cmos_read(0x0B);
     if(!(regB & 0x04)) { // Bit 2 = 0 -> Werte liegen als BCD vor, erst dann umrechnen

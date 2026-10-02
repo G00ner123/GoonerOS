@@ -2,7 +2,6 @@
 #include "io.h"
 
 static const char* kernel_panic_reason;
-<<<<<<< HEAD
 extern const unsigned char _binary_user_program_elf_start[];
 extern const unsigned char _binary_user_program_elf_end[];
 
@@ -18,8 +17,6 @@ static void kernel_install_sample_elf(void) {
                           "Warnung: hello.elf konnte nicht installiert werden\n"));
     }
 }
-=======
->>>>>>> 409f10ca7eb9b89ecee2ad93002bb7b6b9e15e54
 
 void kernel_main(void) {
     unsigned int fb_addr, pitch, bpp;
@@ -47,14 +44,9 @@ void kernel_main(void) {
     outb(0xA1, 0xEF);
     page_allocator_init();
     asm volatile("sti");
-<<<<<<< HEAD
     if(filesystem_ready) kernel_install_sample_elf();
 
     if(desktop_boot_animation_enabled()) play_gooneros_animation();
-=======
-
-    play_gooneros_animation();
->>>>>>> 409f10ca7eb9b89ecee2ad93002bb7b6b9e15e54
 
     vga_print(ui_text("GOonerOS v0.10 Full 780L\n", "GOonerOS v0.10 Vollversion 780L\n"));
     if(boot_logo) draw_arch_logo(900, 20, 330, 100, 0x1793D1);
@@ -84,10 +76,6 @@ void kernel_main(void) {
         if(mouse_poll_event(&mx, &my, &mleft))
             desktop_handle_mouse(mx, my, mleft);
         keyboard_poll();
-<<<<<<< HEAD
-=======
-        scheduler_run();
->>>>>>> 409f10ca7eb9b89ecee2ad93002bb7b6b9e15e54
         desktop_editor_update();
 
         if(ticks - last_blink_tick >= 300) {
@@ -96,12 +84,8 @@ void kernel_main(void) {
             // Nur zeichnen, wenn das Terminal gerade das fokussierte
             // Fenster ist - sonst blinkt der Cursor auf dem nackten
             // Desktop oder hinter einem anderen Fenster weiter.
-<<<<<<< HEAD
             if(desktop_terminal_focused())
                 draw_cursor_bar(desktop_terminal_cursor_blink_enabled() ? blink_visible : 1);
-=======
-            if(desktop_terminal_focused()) draw_cursor_bar(blink_visible);
->>>>>>> 409f10ca7eb9b89ecee2ad93002bb7b6b9e15e54
         }
         if(ticks - last_desktop_tick >= 1000) {
             last_desktop_tick = ticks;
@@ -143,11 +127,7 @@ static void kernel_panic_render(const char* message, unsigned int vector,
     draw_rect(0, 8, VESA_WIDTH, 78, 0x26090D);
     draw_rect(0, 86, VESA_WIDTH, 3, 0x8B1E2D);
     panic_draw_large_text(32, 20, "FATAL KERNEL PANIC", 0xFFFFFF, 0x26090D);
-<<<<<<< HEAD
     panic_draw_text(32, 64, "Kernel panic - not syncing",
-=======
-    panic_draw_text(32, 64, "SYSTEM HALTED - REBOOT REQUIRED",
->>>>>>> 409f10ca7eb9b89ecee2ad93002bb7b6b9e15e54
                     0xFF737D, 0x26090D, 48);
     if(exception) {
         static const char* names[32] = {
@@ -242,12 +222,9 @@ static void kernel_panic_render(const char* message, unsigned int vector,
         panic_draw_text(32, 476,
             "No recovery was attempted: kernel state is unsafe to continue.",
             0xFFFFFF, 0x07090C, 112);
-<<<<<<< HEAD
         panic_draw_text(32, 500,
             "No safe return path; the kernel is looping here until you reboot.",
             0xB8C4CF, 0x07090C, 112);
-=======
->>>>>>> 409f10ca7eb9b89ecee2ad93002bb7b6b9e15e54
     } else {
         draw_rect(24, 108, VESA_WIDTH-48, 170, 0x12171E);
         panic_draw_text(40, 124, "FATAL KERNEL INTEGRITY FAILURE",
@@ -260,12 +237,9 @@ static void kernel_panic_render(const char* message, unsigned int vector,
         panic_draw_text(32, 308,
             "No recovery was attempted. Reboot the machine to continue.",
             0xFF737D, 0x07090C, 112);
-<<<<<<< HEAD
         panic_draw_text(32, 336,
             "No safe return path; the kernel is looping here until you reboot.",
             0xB8C4CF, 0x07090C, 112);
-=======
->>>>>>> 409f10ca7eb9b89ecee2ad93002bb7b6b9e15e54
     }
     for(;;) asm volatile("hlt");
 }
@@ -280,13 +254,8 @@ unsigned int kernel_exception_dispatch(unsigned int vector, unsigned int error,
                                        unsigned int eip, unsigned int cs,
                                        unsigned int address) {
     if((cs & 3u) == 3u) {
-<<<<<<< HEAD
         return (unsigned int)user_fault_dispatch(error, eip, cs,
                                                   vector == 14 ? address : 0);
-=======
-        user_fault_dispatch(error, eip, cs, vector == 14 ? address : 0);
-        return 1;
->>>>>>> 409f10ca7eb9b89ecee2ad93002bb7b6b9e15e54
     }
     kernel_panic_render(vector == 6 ? kernel_panic_reason : 0,
                         vector, error, eip, cs, address, 1);

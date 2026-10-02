@@ -5,10 +5,7 @@ typedef struct {
     int pid;
     int type;
     int state;
-<<<<<<< HEAD
     unsigned int saved_esp;
-=======
->>>>>>> 409f10ca7eb9b89ecee2ad93002bb7b6b9e15e54
     unsigned int steps;
     unsigned int progress;
     unsigned int total;
@@ -18,7 +15,6 @@ typedef struct {
 static scheduler_task_t tasks[SCHEDULER_MAX_TASKS];
 static unsigned int next_pid = 2;
 static int next_slot = 0;
-<<<<<<< HEAD
 static int current_task_slot = -1;
 static int current_user_slot = -1;
 static unsigned int main_stack_pointer;
@@ -70,9 +66,6 @@ static void scheduler_task_bootstrap(void) {
     }
     scheduler_task_exit();
 }
-=======
-static unsigned char checksum_data[FS_MAX_FILE_BYTES + 1];
->>>>>>> 409f10ca7eb9b89ecee2ad93002bb7b6b9e15e54
 
 static int scheduler_allocate_pid(void) {
     for(int attempt = 0; attempt <= SCHEDULER_MAX_TASKS; attempt++) {
@@ -92,10 +85,7 @@ void scheduler_init(void) {
         tasks[i].pid = 0;
         tasks[i].type = SCHEDULER_TASK_COUNTER;
         tasks[i].state = SCHEDULER_STATE_DONE;
-<<<<<<< HEAD
         tasks[i].saved_esp = 0;
-=======
->>>>>>> 409f10ca7eb9b89ecee2ad93002bb7b6b9e15e54
         tasks[i].steps = 0;
         tasks[i].progress = 0;
         tasks[i].total = 0;
@@ -103,7 +93,6 @@ void scheduler_init(void) {
     }
     next_pid = 2;
     next_slot = 0;
-<<<<<<< HEAD
     current_task_slot = -1;
     current_user_slot = -1;
     main_stack_pointer = 0;
@@ -132,33 +121,15 @@ static int scheduler_add_task(int type) {
         frame[12] = 0x202;
         frame[13] = (unsigned int)scheduler_task_exit;
         tasks[i].saved_esp = (unsigned int)frame;
-=======
-}
-
-static int scheduler_add_task(int type) {
-    for(int i = 0; i < SCHEDULER_MAX_TASKS; i++) {
-        if(tasks[i].active) continue;
-        int pid = scheduler_allocate_pid();
-        if(pid < 0) return -1;
-        tasks[i].active = 1;
-        tasks[i].pid = pid;
-        tasks[i].type = type;
-        tasks[i].state = SCHEDULER_STATE_RUNNABLE;
->>>>>>> 409f10ca7eb9b89ecee2ad93002bb7b6b9e15e54
         tasks[i].steps = 0;
         tasks[i].progress = 0;
         tasks[i].total = 0;
         tasks[i].crc = 0xFFFFFFFFu;
-<<<<<<< HEAD
         tasks[i].active = 1;
         scheduler_interrupts_restore(flags);
         return tasks[i].pid;
     }
     scheduler_interrupts_restore(flags);
-=======
-        return tasks[i].pid;
-    }
->>>>>>> 409f10ca7eb9b89ecee2ad93002bb7b6b9e15e54
     return -1;
 }
 
@@ -169,7 +140,6 @@ int scheduler_spawn_counter(void) {
 int scheduler_spawn_checksum(const char* path) {
     if(!path || !path[0]) return -1;
     int free_slot = 0;
-<<<<<<< HEAD
     unsigned int flags = scheduler_interrupts_save_disable();
     for(int i = 0; i < SCHEDULER_MAX_TASKS; i++) {
         if(!tasks[i].active) free_slot = 1;
@@ -180,12 +150,6 @@ int scheduler_spawn_checksum(const char* path) {
         }
     }
     scheduler_interrupts_restore(flags);
-=======
-    for(int i = 0; i < SCHEDULER_MAX_TASKS; i++)
-        if(!tasks[i].active) free_slot = 1;
-        else if(tasks[i].type == SCHEDULER_TASK_CHECKSUM &&
-                tasks[i].state == SCHEDULER_STATE_RUNNABLE) return -1;
->>>>>>> 409f10ca7eb9b89ecee2ad93002bb7b6b9e15e54
     if(!free_slot) return -1;
     struct fs_entry* entry = fs_find(path);
     if(!entry || fs_is_directory(entry) || entry->size > FS_MAX_FILE_BYTES) return -1;
@@ -204,22 +168,15 @@ int scheduler_spawn_checksum(const char* path) {
 
 int scheduler_kill(int pid) {
     if(pid < 2) return 0;
-<<<<<<< HEAD
     if(pid >= 100) return user_process_kill(pid);
     unsigned int flags = scheduler_interrupts_save_disable();
     for(int i = 0; i < SCHEDULER_MAX_TASKS; i++) {
         if(tasks[i].active && tasks[i].pid == pid) {
-=======
-    for(int i = 0; i < SCHEDULER_MAX_TASKS; i++) {
-        if(tasks[i].active && tasks[i].pid == pid) {
-            tasks[i].active = 0;
->>>>>>> 409f10ca7eb9b89ecee2ad93002bb7b6b9e15e54
             tasks[i].pid = 0;
             tasks[i].steps = 0;
             tasks[i].progress = 0;
             tasks[i].total = 0;
             tasks[i].crc = 0;
-<<<<<<< HEAD
             tasks[i].active = 0;
             scheduler_interrupts_restore(flags);
             return 1;
@@ -292,90 +249,37 @@ int scheduler_task_count(void) {
         if(tasks[i].active) count++;
     count += user_process_task_count();
     scheduler_interrupts_restore(flags);
-=======
-            return 1;
-        }
-    }
-    return 0;
-}
-
-void scheduler_run(void) {
-    for(int scanned = 0; scanned < SCHEDULER_MAX_TASKS; scanned++) {
-        int i = next_slot;
-        next_slot = (next_slot + 1) % SCHEDULER_MAX_TASKS;
-        if(tasks[i].active && tasks[i].state == SCHEDULER_STATE_RUNNABLE) {
-            tasks[i].steps++;
-            if(tasks[i].type == SCHEDULER_TASK_CHECKSUM) {
-                unsigned int end = tasks[i].progress + 64;
-                if(end > tasks[i].total) end = tasks[i].total;
-                while(tasks[i].progress < end) {
-                    tasks[i].crc ^= checksum_data[tasks[i].progress++];
-                    for(int bit = 0; bit < 8; bit++)
-                        tasks[i].crc = (tasks[i].crc >> 1) ^
-                            (0xEDB88320u & (0u - (tasks[i].crc & 1u)));
-                }
-                if(tasks[i].progress >= tasks[i].total) {
-                    tasks[i].crc = ~tasks[i].crc;
-                    tasks[i].state = SCHEDULER_STATE_DONE;
-                }
-            }
-            return;
-        }
-    }
-}
-
-int scheduler_task_count(void) {
-    int count = 0;
-    for(int i = 0; i < SCHEDULER_MAX_TASKS; i++)
-        if(tasks[i].active) count++;
->>>>>>> 409f10ca7eb9b89ecee2ad93002bb7b6b9e15e54
     return count;
 }
 
 int scheduler_get_task(int index, int* pid, unsigned int* steps) {
-<<<<<<< HEAD
     unsigned int flags = scheduler_interrupts_save_disable();
     int current = 0;
     if(!pid || !steps || index < 0) {
         scheduler_interrupts_restore(flags);
         return 0;
     }
-=======
-    int current = 0;
-    if(!pid || !steps || index < 0) return 0;
->>>>>>> 409f10ca7eb9b89ecee2ad93002bb7b6b9e15e54
     for(int i = 0; i < SCHEDULER_MAX_TASKS; i++) {
         if(!tasks[i].active) continue;
         if(current++ != index) continue;
         *pid = tasks[i].pid;
         *steps = tasks[i].steps;
-<<<<<<< HEAD
         scheduler_interrupts_restore(flags);
         return 1;
     }
     scheduler_interrupts_restore(flags);
-=======
-        return 1;
-    }
->>>>>>> 409f10ca7eb9b89ecee2ad93002bb7b6b9e15e54
     return 0;
 }
 
 int scheduler_get_task_info(int index, int* pid, int* type, int* state,
                             unsigned int* steps, unsigned int* progress,
                             unsigned int* total, unsigned int* result) {
-<<<<<<< HEAD
     unsigned int flags = scheduler_interrupts_save_disable();
     int current = 0;
     if(!pid || !type || !state || !steps || !progress || !total || !result || index < 0) {
         scheduler_interrupts_restore(flags);
         return 0;
     }
-=======
-    int current = 0;
-    if(!pid || !type || !state || !steps || !progress || !total || !result || index < 0)
-        return 0;
->>>>>>> 409f10ca7eb9b89ecee2ad93002bb7b6b9e15e54
     for(int i = 0; i < SCHEDULER_MAX_TASKS; i++) {
         if(!tasks[i].active) continue;
         if(current++ != index) continue;
@@ -386,7 +290,6 @@ int scheduler_get_task_info(int index, int* pid, int* type, int* state,
         *progress = tasks[i].progress;
         *total = tasks[i].total;
         *result = tasks[i].state == SCHEDULER_STATE_DONE ? tasks[i].crc : 0;
-<<<<<<< HEAD
         scheduler_interrupts_restore(flags);
         return 1;
     }
@@ -400,9 +303,5 @@ int scheduler_get_task_info(int index, int* pid, int* type, int* state,
         return 1;
     }
     scheduler_interrupts_restore(flags);
-=======
-        return 1;
-    }
->>>>>>> 409f10ca7eb9b89ecee2ad93002bb7b6b9e15e54
     return 0;
 }

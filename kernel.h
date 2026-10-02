@@ -10,10 +10,7 @@
 #define TEXT_WRAP_WIDTH 760
 #define TEXT_COLS (TEXT_WRAP_WIDTH/8)
 #define TEXT_ROWS (VESA_HEIGHT/16)
-<<<<<<< HEAD
 #define SHELL_LINE_CAPACITY 256
-=======
->>>>>>> 409f10ca7eb9b89ecee2ad93002bb7b6b9e15e54
 
 /* ==================== Heap ==================== */
 #define HEAP_START 0x200000
@@ -92,10 +89,7 @@ int fs_check(void);
 
 /* ==================== ATA ==================== */
 int ata_rw_sectors(unsigned int lba, unsigned short count, unsigned short* buf, int write);
-<<<<<<< HEAD
 void pci_list_devices(void);
-=======
->>>>>>> 409f10ca7eb9b89ecee2ad93002bb7b6b9e15e54
 
 /* ==================== RTC / Uhr ==================== */
 unsigned char cmos_read(unsigned char reg);
@@ -118,7 +112,6 @@ int paging_create_user_space(unsigned int slot, unsigned int code_page, unsigned
 int paging_activate_user_space(unsigned int slot);
 void paging_activate_kernel_space(void);
 int user_process_run(int pid, int test_fault);
-<<<<<<< HEAD
 void user_process_init(void);
 int user_process_spawn_async(int test_fault);
 int user_process_spawn_elf(const char* path);
@@ -136,10 +129,6 @@ int user_process_activate(int index);
 void user_process_reap_done(void);
 int user_syscall_dispatch(unsigned int* registers);
 int user_fault_dispatch(unsigned int error, unsigned int eip, unsigned int cs, unsigned int address);
-=======
-int user_syscall_dispatch(unsigned int* registers);
-void user_fault_dispatch(unsigned int error, unsigned int eip, unsigned int cs, unsigned int address);
->>>>>>> 409f10ca7eb9b89ecee2ad93002bb7b6b9e15e54
 void gdt_install(void);
 void gdt_set_kernel_stack(unsigned int stack_top);
 
@@ -191,7 +180,6 @@ void desktop_editor_key(char c, int special);
 void desktop_editor_update(void);
 int desktop_save_preferences(void);
 int desktop_boot_logo_enabled(void);
-<<<<<<< HEAD
 int desktop_boot_animation_enabled(void);
 int desktop_system_sounds_enabled(void);
 int desktop_terminal_cursor_blink_enabled(void);
@@ -199,10 +187,6 @@ void play_gooneros_animation(void);
 extern int mint_visible;
 int mouse_get_sensitivity(void);
 void mouse_set_sensitivity(int sensitivity);
-=======
-void play_gooneros_animation(void);
-extern int mint_visible;
->>>>>>> 409f10ca7eb9b89ecee2ad93002bb7b6b9e15e54
 
 /* ==================== Interrupts / PIT ==================== */
 extern volatile unsigned int ticks;
@@ -211,11 +195,7 @@ void pit_wait_ms(unsigned int ms);
 void idt_install(void);
 void remap_pic(void);
 void irq_ack(unsigned char irq);
-<<<<<<< HEAD
 unsigned int irq0_handler(unsigned int stack_pointer);
-=======
-void irq0_handler(void);
->>>>>>> 409f10ca7eb9b89ecee2ad93002bb7b6b9e15e54
 
 /* ==================== Tastatur / PS2 ==================== */
 #define KEYBOARD_LAYOUT_DE 0
@@ -223,13 +203,10 @@ void irq0_handler(void);
 void ps2_init(void);
 void irq1_handler(void);
 void keyboard_poll(void);
-<<<<<<< HEAD
 int shell_menuconfig_active(void);
 void shell_menuconfig_key(int key);
 int shell_history_move(int direction);
 void redraw_input_line(void);
-=======
->>>>>>> 409f10ca7eb9b89ecee2ad93002bb7b6b9e15e54
 void keyboard_load_layout(void);
 int keyboard_set_layout(int layout);
 int keyboard_get_layout(void);
@@ -253,11 +230,7 @@ void mouse_set_cursor_shape(int shape);
 int mouse_poll_event(int* x, int* y, int* left);
 
 /* ==================== Shell ==================== */
-<<<<<<< HEAD
 extern char input_buf[SHELL_LINE_CAPACITY];
-=======
-extern char input_buf[64];
->>>>>>> 409f10ca7eb9b89ecee2ad93002bb7b6b9e15e54
 extern int input_idx;
 extern int cursor_col;
 extern int prompt_x, prompt_y;
@@ -279,7 +252,6 @@ void beep(void);
 
 /* ==================== Kooperativer Scheduler ==================== */
 #define SCHEDULER_MAX_TASKS 8
-<<<<<<< HEAD
 #define USER_PROCESS_LIMIT 2
 #define SCHEDULER_TASK_COUNTER 0
 #define SCHEDULER_TASK_CHECKSUM 1
@@ -288,21 +260,11 @@ void beep(void);
 #define SCHEDULER_STATE_DONE 1
 #define SCHEDULER_STATE_SLEEPING 2
 #define SCHEDULER_STATE_WAITING 3
-=======
-#define SCHEDULER_TASK_COUNTER 0
-#define SCHEDULER_TASK_CHECKSUM 1
-#define SCHEDULER_STATE_RUNNABLE 0
-#define SCHEDULER_STATE_DONE 1
->>>>>>> 409f10ca7eb9b89ecee2ad93002bb7b6b9e15e54
 void scheduler_init(void);
 int scheduler_spawn_counter(void);
 int scheduler_spawn_checksum(const char* path);
 int scheduler_kill(int pid);
-<<<<<<< HEAD
 unsigned int scheduler_timer_switch(unsigned int stack_pointer);
-=======
-void scheduler_run(void);
->>>>>>> 409f10ca7eb9b89ecee2ad93002bb7b6b9e15e54
 int scheduler_task_count(void);
 int scheduler_get_task(int index, int* pid, unsigned int* steps);
 int scheduler_get_task_info(int index, int* pid, int* type, int* state,

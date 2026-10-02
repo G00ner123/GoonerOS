@@ -7,11 +7,8 @@ extern irq1_handler
 extern irq12_handler
 extern kernel_exception_dispatch
 extern user_exception_return
-<<<<<<< HEAD
 extern user_interrupt_return
 extern scheduler_timer_switch
-=======
->>>>>>> 409f10ca7eb9b89ecee2ad93002bb7b6b9e15e54
 
 global irq0
 global irq1
@@ -90,17 +87,13 @@ exception_common_stub:
     push eax
     call kernel_exception_dispatch
     add esp, 20
-<<<<<<< HEAD
     cmp eax, 2
     je .schedule_user
-=======
->>>>>>> 409f10ca7eb9b89ecee2ad93002bb7b6b9e15e54
     test eax, eax
     jnz user_exception_return
     popa
     add esp, 8
     iretd
-<<<<<<< HEAD
 .schedule_user:
     mov eax, esp
     push eax
@@ -108,8 +101,6 @@ exception_common_stub:
     add esp, 4
     mov esp, eax
     jmp user_interrupt_return
-=======
->>>>>>> 409f10ca7eb9b89ecee2ad93002bb7b6b9e15e54
 
 irq0:
     cli
@@ -144,15 +135,11 @@ irq_common_stub:
     jmp .done
 
 .timer:
-<<<<<<< HEAD
     mov eax, esp
     push eax
     call irq0_handler
     add esp, 4
     mov esp, eax
-=======
-    call irq0_handler
->>>>>>> 409f10ca7eb9b89ecee2ad93002bb7b6b9e15e54
     jmp .done
 
 .keyboard:

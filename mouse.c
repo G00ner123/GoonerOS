@@ -12,7 +12,10 @@ static unsigned int cursor_backup[12 * 12];
 static int cursor_backup_valid = 0;
 static int cursor_hidden = 0;
 static int cursor_shape = 0;
+<<<<<<< HEAD
 static int mouse_sensitivity = 1;
+=======
+>>>>>>> 409f10ca7eb9b89ecee2ad93002bb7b6b9e15e54
 
 static int ps2_wait_input_empty(void) {
     unsigned int timeout = 100000;
@@ -60,8 +63,13 @@ void mouse_handler(unsigned char data) {
     if(cycle != 3) return;
 
     mouse_left_down = packet[0] & 1;
+<<<<<<< HEAD
     mouse_x += (signed char)packet[1] * mouse_sensitivity;
     mouse_y -= (signed char)packet[2] * mouse_sensitivity;
+=======
+    mouse_x += (signed char)packet[1];
+    mouse_y -= (signed char)packet[2];
+>>>>>>> 409f10ca7eb9b89ecee2ad93002bb7b6b9e15e54
     if(mouse_x < 0) mouse_x = 0;
     if(mouse_y < 0) mouse_y = 0;
     if(mouse_x >= VESA_WIDTH) mouse_x = VESA_WIDTH - 1;
@@ -79,10 +87,13 @@ void irq12_handler(void) {
 int mouse_get_x(void) { return mouse_x; }
 int mouse_get_y(void) { return mouse_y; }
 int mouse_left_pressed(void) { return mouse_left_down; }
+<<<<<<< HEAD
 int mouse_get_sensitivity(void) { return mouse_sensitivity; }
 void mouse_set_sensitivity(int sensitivity) {
     if(sensitivity >= 1 && sensitivity <= 3) mouse_sensitivity = sensitivity;
 }
+=======
+>>>>>>> 409f10ca7eb9b89ecee2ad93002bb7b6b9e15e54
 
 void mouse_set_cursor_shape(int shape) {
     if(shape < 0 || shape > 4 || cursor_shape == shape) return;

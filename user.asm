@@ -5,6 +5,7 @@ global user_app_start
 global user_app_end
 
 user_app_start:
+<<<<<<< HEAD
     mov ebp, eax
     cmp ebp, 2
     je .spin
@@ -43,11 +44,19 @@ user_app_start:
     jmp .reverse
 .pid_ready:
     mov ecx, edx
+=======
+    mov edx, eax
+    mov eax, 3
+    int 0x80
+    add al, '0'
+    mov [0x40001FF0], al
+>>>>>>> 409f10ca7eb9b89ecee2ad93002bb7b6b9e15e54
     mov eax, 1
     mov ebx, user_message - user_app_start + 0x40000000
     mov ecx, user_message_end - user_message
     int 0x80
     mov eax, 1
+<<<<<<< HEAD
     mov ebx, esi
     mov ecx, edx
     int 0x80
@@ -73,10 +82,16 @@ user_app_start:
 .guard_fault:
     mov eax, [0x40001000]
 .print_suffix:
+=======
+    mov ebx, 0x40001FF0
+    mov ecx, 1
+    int 0x80
+>>>>>>> 409f10ca7eb9b89ecee2ad93002bb7b6b9e15e54
     mov eax, 1
     mov ebx, user_suffix - user_app_start + 0x40000000
     mov ecx, user_suffix_end - user_suffix
     int 0x80
+<<<<<<< HEAD
 .exit:
     mov eax, 2
     xor ebx, ebx
@@ -87,6 +102,15 @@ user_app_start:
     int 0x80
     inc ecx
     jmp .spin
+=======
+    test edx, edx
+    jz .exit
+    mov eax, [0x00100000]
+.exit:
+    mov eax, 2
+    int 0x80
+    jmp .exit
+>>>>>>> 409f10ca7eb9b89ecee2ad93002bb7b6b9e15e54
 
 user_message: db "ring-3 process ", 0
 user_message_end:

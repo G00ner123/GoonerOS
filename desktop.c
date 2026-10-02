@@ -60,7 +60,11 @@ static int drag_outline_active = 0;
 static int drag_outline_x, drag_outline_y, drag_outline_w, drag_outline_h;
 static unsigned int drag_outline_pixels[8*VESA_WIDTH + 8*VESA_HEIGHT];
 static int window_sizes[8][2] = {
+<<<<<<< HEAD
     {740,560}, {460,230}, {300,160}, {500,480},
+=======
+    {740,560}, {460,230}, {300,160}, {500,330},
+>>>>>>> 409f10ca7eb9b89ecee2ad93002bb7b6b9e15e54
     {650,450}, {480,260}, {660,470}, {560,376}
 };
 static int window_sizes_loaded;
@@ -69,6 +73,7 @@ static const char window_sizes_path[] = "winsize.cfg";
 static unsigned int theme_colors[6] = {0x00FFAA,0x3399FF,0xFF4444,0x55FF55,0xAA55FF,0xFFAA00};
 static int wallpaper_variant = 0;
 static int boot_logo_enabled = 1;
+<<<<<<< HEAD
 static int boot_animation_enabled = 1;
 static int system_sounds_enabled = 1;
 static int terminal_cursor_blink_enabled = 1;
@@ -78,6 +83,13 @@ static const char* wallpaper_names[6] = {"AQUA", "OCEAN", "VIOLET", "EMBER", "FO
 static const char desktop_preferences_path[] = "goonset.cfg";
 static int preferences_status = 0;
 static int desktop_preferences_loaded;
+=======
+static int task_selected_pid = -1;
+static int task_status = 0;
+static const char* wallpaper_names[3] = {"AQUA", "OCEAN", "VIOLET"};
+static const char desktop_preferences_path[] = "goonset.cfg";
+static int preferences_status = 0;
+>>>>>>> 409f10ca7eb9b89ecee2ad93002bb7b6b9e15e54
 static int files_selected = -1;
 static int files_page = 0;
 static char files_cwd[FS_NAME_LEN];
@@ -99,7 +111,10 @@ static char clock_cache[9] = "--:--:--";
 
 /* ---------- Vorwaertsdeklarationen ---------- */
 static unsigned int wallpaper_color_at(int y);
+<<<<<<< HEAD
 static void draw_wallpaper_design(int clip_x, int clip_y, int clip_w, int clip_h);
+=======
+>>>>>>> 409f10ca7eb9b89ecee2ad93002bb7b6b9e15e54
 static void draw_wallpaper(void);
 static void draw_wallpaper_rect(int x, int y, int w, int h);
 static void draw_taskbar(void);
@@ -121,8 +136,12 @@ static int  win_hit_titlebar(window_t* w, int mx, int my);
 static void draw_close_button(window_t* w);
 static void settings_swatch_rect(window_t* w, int i, int* sx, int* sy, int* sw, int* sh);
 static void settings_layout_rect(window_t* w, int i, int* sx, int* sy, int* sw, int* sh);
+<<<<<<< HEAD
 static void settings_toggle_rect(window_t* w, int row, int* sx, int* sy, int* sw, int* sh);
 static void settings_sensitivity_rect(window_t* w, int i, int* sx, int* sy, int* sw, int* sh);
+=======
+static void settings_logo_rect(window_t* w, int* sx, int* sy, int* sw, int* sh);
+>>>>>>> 409f10ca7eb9b89ecee2ad93002bb7b6b9e15e54
 static void win_render(int idx);
 static void drag_move_window(int idx, int x, int y);
 static void drag_outline_restore(void);
@@ -164,8 +183,13 @@ static const char* window_title(int type) {
 }
 
 static void settings_wallpaper_rect(window_t* w, int i, int* sx, int* sy, int* sw, int* sh) {
+<<<<<<< HEAD
     *sw = 66; *sh = 28;
     *sx = w->x + 20 + i*72;
+=======
+    *sw = 82; *sh = 28;
+    *sx = w->x + 20 + i*92;
+>>>>>>> 409f10ca7eb9b89ecee2ad93002bb7b6b9e15e54
     *sy = w->y + 112;
 }
 
@@ -175,6 +199,7 @@ static void settings_layout_rect(window_t* w, int i, int* sx, int* sy, int* sw, 
     *sy = w->y + 176;
 }
 
+<<<<<<< HEAD
 static void settings_toggle_rect(window_t* w, int row, int* sx, int* sy, int* sw, int* sh) {
     *sw = 190; *sh = 28;
     *sx = w->x + 20;
@@ -185,6 +210,12 @@ static void settings_sensitivity_rect(window_t* w, int i, int* sx, int* sy, int*
     *sw = 56; *sh = 28;
     *sx = w->x + 20 + i*64;
     *sy = w->y + 394;
+=======
+static void settings_logo_rect(window_t* w, int* sx, int* sy, int* sw, int* sh) {
+    *sw = 190; *sh = 28;
+    *sx = w->x + 20;
+    *sy = w->y + 226;
+>>>>>>> 409f10ca7eb9b89ecee2ad93002bb7b6b9e15e54
 }
 
 static int theme_color_index(void) {
@@ -194,13 +225,18 @@ static int theme_color_index(void) {
 }
 
 static void load_desktop_preferences(void) {
+<<<<<<< HEAD
     if(desktop_preferences_loaded) return;
     desktop_preferences_loaded = 1;
     char config[20];
+=======
+    char config[12];
+>>>>>>> 409f10ca7eb9b89ecee2ad93002bb7b6b9e15e54
     int len = fs_read(desktop_preferences_path, config, sizeof(config));
     if(len == 6 && config[0] == '1' && config[1] == ',' &&
        config[3] == ',' && config[5] == '\n' &&
        config[2] >= '0' && config[2] <= '5' &&
+<<<<<<< HEAD
        config[4] >= '0' && config[4] <= '5') {
         ui_theme_color = theme_colors[config[2] - '0'];
         wallpaper_variant = config[4] - '0';
@@ -238,16 +274,33 @@ static void load_desktop_preferences(void) {
        (config[10] != '0' && config[10] != '1') ||
        (config[12] < '1' || config[12] > '3') ||
        (config[14] != '0' && config[14] != '1')) {
+=======
+       config[4] >= '0' && config[4] <= '2') {
+        ui_theme_color = theme_colors[config[2] - '0'];
+        wallpaper_variant = config[4] - '0';
+        boot_logo_enabled = 1;
+        preferences_status = 1;
+        return;
+    }
+    if(len != 8 || config[0] != '2' || config[1] != ',' ||
+       config[3] != ',' || config[5] != ',' || config[7] != '\n' ||
+       config[2] < '0' || config[2] > '5' ||
+       config[4] < '0' || config[4] > '2' ||
+       (config[6] != '0' && config[6] != '1')) {
+>>>>>>> 409f10ca7eb9b89ecee2ad93002bb7b6b9e15e54
         preferences_status = 0;
         return;
     }
     ui_theme_color = theme_colors[config[2] - '0'];
     wallpaper_variant = config[4] - '0';
     boot_logo_enabled = config[6] == '1';
+<<<<<<< HEAD
     boot_animation_enabled = config[8] == '1';
     system_sounds_enabled = config[10] == '1';
     mouse_set_sensitivity(config[12] - '0');
     terminal_cursor_blink_enabled = config[14] == '1';
+=======
+>>>>>>> 409f10ca7eb9b89ecee2ad93002bb7b6b9e15e54
     preferences_status = 1;
 }
 
@@ -257,12 +310,17 @@ static int save_desktop_preferences(void) {
         preferences_status = 2;
         return 0;
     }
+<<<<<<< HEAD
     char config[16] = {'3', ',', (char)('0' + color), ',', (char)('0' + wallpaper_variant), ',',
                        boot_logo_enabled ? '1' : '0', ',',
                        boot_animation_enabled ? '1' : '0', ',',
                        system_sounds_enabled ? '1' : '0', ',',
                        (char)('0' + mouse_get_sensitivity()), ',',
                        terminal_cursor_blink_enabled ? '1' : '0', '\n'};
+=======
+    char config[8] = {'2', ',', (char)('0' + color), ',', (char)('0' + wallpaper_variant), ',',
+                      boot_logo_enabled ? '1' : '0', '\n'};
+>>>>>>> 409f10ca7eb9b89ecee2ad93002bb7b6b9e15e54
     if(!fs_write(desktop_preferences_path, config, sizeof(config))) {
         preferences_status = 3;
         return 0;
@@ -299,11 +357,17 @@ static void load_window_sizes(void) {
         resize_minimum(&window, &min_width, &min_height);
         if(!window_size_parse_number(&cursor, ',', &loaded[i][0]) ||
            !window_size_parse_number(&cursor, '\n', &loaded[i][1]) ||
+<<<<<<< HEAD
            loaded[i][0] > VESA_WIDTH ||
            loaded[i][1] > VESA_HEIGHT-TASKBAR_H)
             return;
         if(loaded[i][0] < min_width) loaded[i][0] = min_width;
         if(loaded[i][1] < min_height) loaded[i][1] = min_height;
+=======
+           loaded[i][0] < min_width || loaded[i][0] > VESA_WIDTH ||
+           loaded[i][1] < min_height || loaded[i][1] > VESA_HEIGHT-TASKBAR_H)
+            return;
+>>>>>>> 409f10ca7eb9b89ecee2ad93002bb7b6b9e15e54
     }
     if(*cursor) return;
     for(int i = 0; i < 8; i++) {
@@ -350,6 +414,7 @@ int desktop_boot_logo_enabled(void) {
     return boot_logo_enabled;
 }
 
+<<<<<<< HEAD
 int desktop_boot_animation_enabled(void) {
     load_desktop_preferences();
     return boot_animation_enabled;
@@ -365,6 +430,8 @@ int desktop_terminal_cursor_blink_enabled(void) {
     return terminal_cursor_blink_enabled;
 }
 
+=======
+>>>>>>> 409f10ca7eb9b89ecee2ad93002bb7b6b9e15e54
 static void editor_cursor_position(int* col, int* row) {
     *col = 0;
     *row = 0;
@@ -434,18 +501,22 @@ static unsigned int wallpaper_color_at(int y) {
         r = 8 + t / 8; g = 18 + t / 5; b = 40 + t / 2;
     } else if(wallpaper_variant == 2) {
         r = 24 + t / 4; g = 10 + t / 10; b = 38 + t / 3;
+<<<<<<< HEAD
     } else if(wallpaper_variant == 3) {
         r = 35 + t / 2; g = 9 + t / 14; b = 12 + t / 18;
     } else if(wallpaper_variant == 4) {
         r = 5 + t / 14; g = 22 + t / 2; b = 18 + t / 8;
     } else if(wallpaper_variant == 5) {
         r = 13 + t / 3; g = 17 + t / 3; b = 22 + t / 3;
+=======
+>>>>>>> 409f10ca7eb9b89ecee2ad93002bb7b6b9e15e54
     } else {
         r = 10 + t / 5; g = 18 + t / 4; b = 32 + t / 3;
     }
     return (r << 16) | (g << 8) | b;
 }
 
+<<<<<<< HEAD
 static unsigned int wallpaper_ring_color(void) {
     static const unsigned int colors[6] = {
         0x102C4A, 0x123D5A, 0x321A4A, 0x4A1718, 0x123A2C, 0x303840
@@ -458,6 +529,27 @@ static unsigned int wallpaper_core_color(void) {
         0x14243F, 0x0B2340, 0x241638, 0x321719, 0x102A22, 0x20262C
     };
     return colors[wallpaper_variant];
+=======
+static unsigned int wallpaper_pixel_at(int x, int y) {
+    unsigned int color = wallpaper_color_at(y);
+    if((y % 48) == 0) color = 0x18324A;
+    for(int i = 0; i < 12; i++)
+        if(x == 32 + i*89) color = 0x0F2030;
+    for(int i = 0; i < 9; i++) {
+        int cx = 70 + i * 123;
+        int cy = 300 + (i % 3) * 120;
+        int dx = x - cx, dy = y - cy;
+        if(dx * dx + dy * dy <= 70 * 70)
+            color = (dx * dx + dy * dy <= 54 * 54)
+                ? (wallpaper_variant == 1 ? 0x123D5A : 0x14243F)
+                : (wallpaper_variant == 2 ? 0x321A4A : 0x102C4A);
+    }
+    for(int i = 0; i < 9; i++) {
+        int dx = x - (70 + i*123), dy = y - (300 + (i % 3)*120);
+        if(dx*dx + dy*dy <= 8*8) color = ui_theme_color;
+    }
+    return color;
+>>>>>>> 409f10ca7eb9b89ecee2ad93002bb7b6b9e15e54
 }
 
 static void draw_wallpaper(void) {
@@ -466,7 +558,21 @@ static void draw_wallpaper(void) {
         if((y % 48) == 0)
             draw_rect(0, y, VESA_WIDTH, 1, 0x18324A);
     }
+<<<<<<< HEAD
     draw_wallpaper_design(0, 0, VESA_WIDTH, VESA_HEIGHT-TASKBAR_H);
+=======
+    for(int i = 0; i < 12; i++) {
+        int x = 32 + i*89;
+        draw_rect(x, 0, 1, VESA_HEIGHT-TASKBAR_H, 0x0F2030);
+    }
+    for(int i = 0; i < 9; i++) {
+        int cx = 70 + i * 123;
+        int cy = 300 + (i % 3) * 120;
+        draw_circle_filled(cx, cy, 70, wallpaper_variant == 2 ? 0x321A4A : 0x102C4A);
+        draw_circle_filled(cx, cy, 54, wallpaper_variant == 1 ? 0x123D5A : 0x14243F);
+        draw_circle_filled(cx, cy, 8, ui_theme_color);
+    }
+>>>>>>> 409f10ca7eb9b89ecee2ad93002bb7b6b9e15e54
 }
 
 static void draw_taskbar(void) {
@@ -600,7 +706,11 @@ static int win_open(int type) {
         case TYPE_TERMINAL:  windows[idx].x=140; windows[idx].y=90;  windows[idx].w=740; windows[idx].h=560; break;
         case TYPE_INFO:      windows[idx].x=260; windows[idx].y=150; windows[idx].w=460; windows[idx].h=230; break;
         case TYPE_CLOCK:     windows[idx].x=400; windows[idx].y=260; windows[idx].w=300; windows[idx].h=160; break;
+<<<<<<< HEAD
         case TYPE_SETTINGS:  windows[idx].x=280; windows[idx].y=150; windows[idx].w=500; windows[idx].h=480; break;
+=======
+        case TYPE_SETTINGS:  windows[idx].x=280; windows[idx].y=190; windows[idx].w=500; windows[idx].h=330; break;
+>>>>>>> 409f10ca7eb9b89ecee2ad93002bb7b6b9e15e54
         case TYPE_FILES:     windows[idx].x=170; windows[idx].y=130; windows[idx].w=650; windows[idx].h=450; break;
         case TYPE_NETWORK:   windows[idx].x=270; windows[idx].y=200; windows[idx].w=480; windows[idx].h=260; break;
         case TYPE_EDITOR:    windows[idx].x=180; windows[idx].y=120; windows[idx].w=660; windows[idx].h=470; break;
@@ -750,10 +860,17 @@ static void win_render(int idx) {
                 draw_rect(sx+sw, sy-3, 3, sh+6, 0xFFFFFF);
             }
         }
+<<<<<<< HEAD
         const char* wallpaper_label = ui_text("Wallpaper designs", "Hintergrundmotive");
         for(int c = 0; wallpaper_label[c]; c++)
             draw_char(w->x+20+c*8, w->y+100, wallpaper_label[c], 0xDDDDDD, 0x1A1A1A);
         for(int i = 0; i < 6; i++) {
+=======
+        const char* wallpaper_label = ui_text("Wallpaper", "Hintergrund");
+        for(int c = 0; wallpaper_label[c]; c++)
+            draw_char(w->x+20+c*8, w->y+100, wallpaper_label[c], 0xDDDDDD, 0x1A1A1A);
+        for(int i = 0; i < 3; i++) {
+>>>>>>> 409f10ca7eb9b89ecee2ad93002bb7b6b9e15e54
             int sx, sy, sw, sh;
             settings_wallpaper_rect(w, i, &sx, &sy, &sw, &sh);
             unsigned int fill = i == wallpaper_variant ? ui_theme_color : 0x29495E;
@@ -783,6 +900,7 @@ static void win_render(int idx) {
         const char* boot_label = ui_text("Blue startup logo (next boot):", "Blaues Startlogo (ab Neustart):");
         for(int c = 0; boot_label[c]; c++)
             draw_char(w->x+20+c*8, w->y+208, boot_label[c], 0xDDDDDD, 0x1A1A1A);
+<<<<<<< HEAD
         int toggle_x, toggle_y, toggle_w, toggle_h;
         const char* toggle_labels[4] = {
             ui_text("Show logo", "Logo anzeigen"),
@@ -822,6 +940,17 @@ static void win_render(int idx) {
             draw_char(sx+17, sy+6, '1'+i, 0xFFFFFF, fill);
             draw_char(sx+25, sy+6, 'x', 0xFFFFFF, fill);
         }
+=======
+        int logo_x, logo_y, logo_w, logo_h;
+        settings_logo_rect(w, &logo_x, &logo_y, &logo_w, &logo_h);
+        unsigned int logo_fill = boot_logo_enabled ? ui_theme_color : 0x29495E;
+        draw_rect(logo_x, logo_y, logo_w, logo_h, logo_fill);
+        const char* logo_state = boot_logo_enabled
+            ? ui_text("Enabled", "Ein")
+            : ui_text("Disabled", "Aus");
+        for(int c = 0; logo_state[c]; c++)
+            draw_char(logo_x+8+c*8, logo_y+6, logo_state[c], 0xFFFFFF, logo_fill);
+>>>>>>> 409f10ca7eb9b89ecee2ad93002bb7b6b9e15e54
         const char* status = preferences_status == 1
             ? ui_text("Settings loaded", "Einstellungen geladen")
             : preferences_status == 2
@@ -840,7 +969,11 @@ static void win_render(int idx) {
                                         ? ui_text("Window size saved", "Fenstergroesse gespeichert")
                                         : ui_text("Changes are saved automatically", "Aenderungen werden automatisch gespeichert");
         for(int c = 0; status[c] && c < 48; c++)
+<<<<<<< HEAD
             draw_char(w->x+20+c*8, w->y+442, status[c],
+=======
+            draw_char(w->x+20+c*8, w->y+280, status[c],
+>>>>>>> 409f10ca7eb9b89ecee2ad93002bb7b6b9e15e54
                       preferences_status == 7 ? 0xFF737D : 0x9AB3C1, 0x1A1A1A);
 
     }
@@ -962,7 +1095,11 @@ static void win_render(int idx) {
             draw_char(w->x+22+c*8, w->y+158, detail[c], 0x91AFC2, 0x16283A);
     }
     else if(w->type == TYPE_TASKS) {
+<<<<<<< HEAD
         task_draw_text(w->x+20, w->y+34, ui_text("Scheduled tasks", "Geplante Aufgaben"), 0xD8F0FF);
+=======
+        task_draw_text(w->x+20, w->y+34, ui_text("Cooperative tasks", "Kooperative Aufgaben"), 0xD8F0FF);
+>>>>>>> 409f10ca7eb9b89ecee2ad93002bb7b6b9e15e54
         task_draw_text(w->x+20, w->y+56, ui_text("PID  TASK        STATE      ACTIVITY", "PID  AUFGABE     STATUS     AKTIVITAET"), 0x79A9C2);
         unsigned int kernel_color = task_selected_pid == 1 ? 0xFFFFFF : 0x5EEB9B;
         if(task_selected_pid == 1) draw_rect(w->x+16, w->y+82, w->w-32, 20, 0x29495E);
@@ -971,7 +1108,11 @@ static void win_render(int idx) {
         task_draw_text(w->x+170, w->y+84, ui_text("running", "aktiv"), kernel_color);
         task_draw_text(w->x+244, w->y+84, ui_text("event loop", "Ereignisschleife"), kernel_color);
         int count = scheduler_task_count();
+<<<<<<< HEAD
         for(int i = 0; i < count && i < SCHEDULER_MAX_TASKS+1; i++) {
+=======
+        for(int i = 0; i < count && i < SCHEDULER_MAX_TASKS; i++) {
+>>>>>>> 409f10ca7eb9b89ecee2ad93002bb7b6b9e15e54
             int pid, type, state;
             unsigned int steps, progress, total, result;
             if(!scheduler_get_task_info(i, &pid, &type, &state, &steps,
@@ -979,14 +1120,19 @@ static void win_render(int idx) {
                 continue;
             (void)result;
             int y = w->y+106+i*22;
+<<<<<<< HEAD
             unsigned int color = state == SCHEDULER_STATE_DONE ? 0x5EEB9B :
                 state == SCHEDULER_STATE_SLEEPING || state == SCHEDULER_STATE_WAITING
                     ? 0xFFB84D : 0xD8F0FF;
+=======
+            unsigned int color = state == SCHEDULER_STATE_DONE ? 0x5EEB9B : 0xD8F0FF;
+>>>>>>> 409f10ca7eb9b89ecee2ad93002bb7b6b9e15e54
             if(pid == task_selected_pid) {
                 draw_rect(w->x+16, y-2, w->w-32, 20, 0x29495E);
                 color = 0xFFFFFF;
             }
             task_draw_number(w->x+20, y, (unsigned int)pid, color);
+<<<<<<< HEAD
             task_draw_text(w->x+68, y,
                 type == SCHEDULER_TASK_CHECKSUM ? "CRC32" :
                 type == SCHEDULER_TASK_USER ? "User" : ui_text("Counter", "Zaehler"), color);
@@ -995,14 +1141,22 @@ static void win_render(int idx) {
                 state == SCHEDULER_STATE_SLEEPING ? ui_text("sleep", "schlafend") :
                 state == SCHEDULER_STATE_WAITING ? ui_text("wait", "wartend") :
                 ui_text("active", "aktiv"), color);
+=======
+            task_draw_text(w->x+68, y, type == SCHEDULER_TASK_CHECKSUM ? "CRC32" : ui_text("Counter", "Zaehler"), color);
+            task_draw_text(w->x+170, y, state == SCHEDULER_STATE_DONE
+                ? ui_text("done", "fertig") : ui_text("active", "aktiv"), color);
+>>>>>>> 409f10ca7eb9b89ecee2ad93002bb7b6b9e15e54
             if(type == SCHEDULER_TASK_CHECKSUM) {
                 task_draw_number(w->x+244, y, progress, color);
                 task_draw_text(w->x+292, y, "/", color);
                 task_draw_number(w->x+308, y, total, color);
                 task_draw_text(w->x+372, y, ui_text("Bytes", "Bytes"), color);
+<<<<<<< HEAD
             } else if(type == SCHEDULER_TASK_USER) {
                 task_draw_number(w->x+244, y, steps, color);
                 task_draw_text(w->x+308, y, ui_text("preemptions", "PRAEMPTIONEN"), color);
+=======
+>>>>>>> 409f10ca7eb9b89ecee2ad93002bb7b6b9e15e54
             } else {
                 task_draw_number(w->x+244, y, steps, color);
                 task_draw_text(w->x+308, y, ui_text("time slices", "Zeitscheiben"), color);
@@ -1014,7 +1168,11 @@ static void win_render(int idx) {
             ? ui_text("Task limit reached.", "Aufgabenlimit erreicht.")
             : task_status == 2
                 ? ui_text("Select a task row first.", "Zuerst eine Aufgabe auswaehlen.")
+<<<<<<< HEAD
                 : ui_text("Timer-preempted kernel and isolated user processes.", "Timer-praemptive Kernel- und isolierte Userprozesse.");
+=======
+                : ui_text("Kernel jobs use cooperative time slices.", "Kernel-Jobs teilen kooperative Zeitscheiben.");
+>>>>>>> 409f10ca7eb9b89ecee2ad93002bb7b6b9e15e54
         task_draw_text(w->x+20, w->y+342, task_message, 0x91AFC2);
     }
     else if(w->type == TYPE_EDITOR) {
@@ -1107,7 +1265,11 @@ static void resize_minimum(window_t* w, int* width, int* height) {
         case TYPE_TERMINAL: *width = 300; *height = 220; break;
         case TYPE_INFO: *width = 460; *height = 230; break;
         case TYPE_CLOCK: *width = 160; *height = 100; break;
+<<<<<<< HEAD
         case TYPE_SETTINGS: *width = 480; *height = 480; break;
+=======
+        case TYPE_SETTINGS: *width = 480; *height = 320; break;
+>>>>>>> 409f10ca7eb9b89ecee2ad93002bb7b6b9e15e54
         case TYPE_FILES: *width = 650; *height = 450; break;
         case TYPE_NETWORK: *width = 480; *height = 260; break;
         case TYPE_EDITOR: *width = 660; *height = 470; break;
@@ -1268,6 +1430,7 @@ static void draw_wallpaper_circle_clipped(int cx, int cy, int radius, unsigned i
     }
 }
 
+<<<<<<< HEAD
 static void wallpaper_clipped_rect(int x, int y, int w, int h, unsigned int color,
                                    int clip_x, int clip_y, int clip_w, int clip_h) {
     if(x < clip_x) { w -= clip_x-x; x = clip_x; }
@@ -1398,14 +1561,33 @@ static void draw_wallpaper_design(int clip_x, int clip_y, int clip_w, int clip_h
     }
 }
 
+=======
+>>>>>>> 409f10ca7eb9b89ecee2ad93002bb7b6b9e15e54
 static void draw_wallpaper_rect(int x, int y, int w, int h) {
     for(int yy = y; yy < y+h; yy++) {
         unsigned int color = (yy % 48) == 0 ? 0x18324A : wallpaper_color_at(yy);
         draw_rect(x, yy, w, 1, color);
     }
+<<<<<<< HEAD
     if(y < VESA_HEIGHT-TASKBAR_H)
         draw_wallpaper_design(x, y, w,
             y+h > VESA_HEIGHT-TASKBAR_H ? VESA_HEIGHT-TASKBAR_H-y : h);
+=======
+    for(int i = 0; i < 12; i++) {
+        int line_x = 32+i*89;
+        if(line_x >= x && line_x < x+w) draw_rect(line_x, y, 1, h, 0x0F2030);
+    }
+    for(int i = 0; i < 9; i++) {
+        int cx = 70+i*123;
+        int cy = 300+(i%3)*120;
+        if(cx+70 < x || cx-70 >= x+w || cy+70 < y || cy-70 >= y+h) continue;
+        draw_wallpaper_circle_clipped(cx, cy, 70,
+            wallpaper_variant == 2 ? 0x321A4A : 0x102C4A, x, y, w, h);
+        draw_wallpaper_circle_clipped(cx, cy, 54,
+            wallpaper_variant == 1 ? 0x123D5A : 0x14243F, x, y, w, h);
+        draw_wallpaper_circle_clipped(cx, cy, 8, ui_theme_color, x, y, w, h);
+    }
+>>>>>>> 409f10ca7eb9b89ecee2ad93002bb7b6b9e15e54
 }
 
 // Kompletter Redraw - bewusst NUR fuer: Desktop betreten, Themenwechsel
@@ -1828,7 +2010,11 @@ void desktop_handle_mouse(int mx, int my, int left_down) {
                     return;
                 }
             }
+<<<<<<< HEAD
             for(int i = 0; i < 6; i++) {
+=======
+            for(int i = 0; i < 3; i++) {
+>>>>>>> 409f10ca7eb9b89ecee2ad93002bb7b6b9e15e54
                 int sx, sy, sw, sh;
                 settings_wallpaper_rect(w, i, &sx, &sy, &sw, &sh);
                 if(mx >= sx && mx < sx+sw && my >= sy && my < sy+sh) {
@@ -1848,6 +2034,7 @@ void desktop_handle_mouse(int mx, int my, int left_down) {
                     return;
                 }
             }
+<<<<<<< HEAD
             for(int i = 0; i < 4; i++) {
                 int sx, sy, sw, sh;
                 settings_toggle_rect(w, i, &sx, &sy, &sw, &sh);
@@ -1868,6 +2055,15 @@ void desktop_handle_mouse(int mx, int my, int left_down) {
                     return;
                 }
             }
+=======
+            int logo_x, logo_y, logo_w, logo_h;
+            settings_logo_rect(w, &logo_x, &logo_y, &logo_w, &logo_h);
+            if(mx >= logo_x && mx < logo_x+logo_w && my >= logo_y && my < logo_y+logo_h) {
+                boot_logo_enabled = !boot_logo_enabled;
+                desktop_save_preferences();
+                return;
+            }
+>>>>>>> 409f10ca7eb9b89ecee2ad93002bb7b6b9e15e54
         }
         if(w->type == TYPE_TASKS) {
             if(mx >= w->x+20 && mx < w->x+170 && my >= w->y+302 && my < w->y+330) {
@@ -1879,7 +2075,11 @@ void desktop_handle_mouse(int mx, int my, int left_down) {
                 if(task_selected_pid == 1)
                     kernel_panic(ui_text(
                         "Fatal invariant: PID 1 is protected; terminating it would orphan the kernel event loop.",
+<<<<<<< HEAD
                         "Fatal invariant: PID 1 is protected; terminating it would orphan the kernel event loop."));
+=======
+                        "Fataler Invariantenfehler: PID 1 ist geschuetzt; sein Ende wuerde die Kernel-Ereignisschleife verwaisen lassen."));
+>>>>>>> 409f10ca7eb9b89ecee2ad93002bb7b6b9e15e54
                 else if(task_selected_pid < 2) task_status = 2;
                 else {
                     scheduler_kill(task_selected_pid);
@@ -1992,6 +2192,7 @@ void desktop_editor_key(char c, int special) {
 // den Uhr-Cache und malt NUR die Taskleiste + ein evtl. offenes Uhr-Fenster neu
 void desktop_tick(void) {
     unsigned char s,m,h,d,mo,y, s2,m2,h2,d2,mo2,y2;
+<<<<<<< HEAD
     int stable = 0;
     for(int attempt = 0; attempt < 8; attempt++) {
         read_rtc_raw(&h,&m,&s,&d,&mo,&y);
@@ -2002,6 +2203,12 @@ void desktop_tick(void) {
         }
     }
     if(!stable) return;
+=======
+    do {
+        read_rtc_raw(&h,&m,&s,&d,&mo,&y);
+        read_rtc_raw(&h2,&m2,&s2,&d2,&mo2,&y2);
+    } while(h!=h2 || m!=m2 || s!=s2 || d!=d2 || mo!=mo2 || y!=y2);
+>>>>>>> 409f10ca7eb9b89ecee2ad93002bb7b6b9e15e54
 
     unsigned char regB = cmos_read(0x0B);
     if(!(regB & 0x04)) {

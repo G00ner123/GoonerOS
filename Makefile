@@ -12,10 +12,16 @@ LDFLAGS = -m elf_i386 -T linker.ld
 
 QEMU      = qemu-system-i386
 QEMUFLAGS = -drive file=os.img,format=raw -rtc base=localtime
+<<<<<<< HEAD
 USER_ELF  = user_program.elf
 
 # Alle C-Module des Kernels.
 C_SOURCES = kernel.c paging.c gdt.c user_process.c vga.c fs.c ata.c rtc.c idt.c heap.c keyboard.c mouse.c shell.c desktop.c scheduler.c pci.c
+=======
+
+# Alle C-Module des Kernels.
+C_SOURCES = kernel.c paging.c gdt.c user_process.c vga.c fs.c ata.c rtc.c idt.c heap.c keyboard.c mouse.c shell.c desktop.c scheduler.c
+>>>>>>> 409f10ca7eb9b89ecee2ad93002bb7b6b9e15e54
 C_OBJECTS = $(C_SOURCES:.c=.o)
 
 .PHONY: all run clean
@@ -40,6 +46,7 @@ user.o: user.asm
 usermode.o: usermode.asm
 	$(ASM) -f elf32 usermode.asm -o usermode.o
 
+<<<<<<< HEAD
 user_program.o: user_program.asm
 	$(ASM) -f elf32 user_program.asm -o user_program.o
 
@@ -49,6 +56,8 @@ $(USER_ELF): user_program.o user_program.ld
 user_program_blob.o: $(USER_ELF)
 	objcopy -I binary -O elf32-i386 -B i386 $(USER_ELF) user_program_blob.o
 
+=======
+>>>>>>> 409f10ca7eb9b89ecee2ad93002bb7b6b9e15e54
 # Pattern-Regel: jede beliebige xyz.c wird zu xyz.o. kernel.h/io.h als
 # Abhängigkeit.
 %.o: %.c kernel.h io.h
@@ -56,8 +65,13 @@ user_program_blob.o: $(USER_ELF)
 
 # Reihenfolge beim Linken: isr.o zuerst, weil dort _start
 # (der echte Einsprungpunkt bei 0x100000, .text.boot) drin is.
+<<<<<<< HEAD
 kernel.elf: isr.o $(C_OBJECTS) interrupts.o user.o usermode.o user_program_blob.o linker.ld
 	$(LD) $(LDFLAGS) -o kernel.elf isr.o $(C_OBJECTS) interrupts.o user.o usermode.o user_program_blob.o
+=======
+kernel.elf: isr.o $(C_OBJECTS) interrupts.o user.o usermode.o linker.ld
+	$(LD) $(LDFLAGS) -o kernel.elf isr.o $(C_OBJECTS) interrupts.o user.o usermode.o
+>>>>>>> 409f10ca7eb9b89ecee2ad93002bb7b6b9e15e54
 
 kernel.bin: kernel.elf
 	objcopy -O binary kernel.elf kernel.bin

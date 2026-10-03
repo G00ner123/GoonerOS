@@ -19,8 +19,6 @@
      qemu-system-x86
 
 ## Makefile Commands:
-   bash:
-   
    **"*make run*"** compiles the code and starts qemu (if installed).
    **"*make clean*"** deletes all *.o, *.bin and *.elf binary-files, so that you can compile it from zero again (does not delete the os.img file).
 

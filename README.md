@@ -26,7 +26,7 @@
  if the keyboard Layout is German, type "loadkeys en" to set it to English.
  If Booted in a VM type "help" in the shell of the System to see all available commands.
  
-<img width="1496" height="1124" alt="Bildschirmfoto_20260930_174352" src="https://github.com/user-attachments/assets/b6f55cb1-4ab6-4832-8f69-ca347e9fc943" />
+<img width="1489" height="1125" alt="grafik" src="https://github.com/user-attachments/assets/e7f2e00b-f563-4373-a087-821fa61f4380" />
 <img width="1493" height="1118" alt="grafik" src="https://github.com/user-attachments/assets/33b64b09-5024-4b33-b9b3-cdaaf1053c51" />
 <img width="1494" height="1119" alt="grafik" src="https://github.com/user-attachments/assets/4aa91436-fff5-4196-91f8-49dbf9a7125e" />
 

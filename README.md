@@ -2,7 +2,7 @@
  Hand made hobby Operating System. **Experimental**!
  ### Warning:
    Do not flash this on a Install medium etc. **Test ONLY in a VM**, such as QEMU. Due to Instability, Incompatibility and lack of Functions/Content.
-   *(If you ignore this warning and run it on real hardware anyway, that's on you, not me.)*
+   (*If you ignore this warning and run it on real hardware anyway, that's on you, not me.*)
 
 ## Needed/Requirements:
    Needs to be compiled locally with 32-bit-GCC, and nasm or other C and assembly compilers.

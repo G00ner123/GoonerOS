@@ -24,7 +24,7 @@
 
  Comments in the code are written in German, can be ignored.
  (most of) OS and GUI is in English.
- Shell commands are in English, commands are highly inspired by Linux/GNU shell.
+ Shell commands are in English, commands are highly inspired by Linux/GNU.
  if the keyboard Layout is German, type "loadkeys en" to set it to English.
  If Booted in a VM type "help" in the shell of the System to see all available commands.
  
